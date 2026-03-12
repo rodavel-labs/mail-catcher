@@ -5,7 +5,7 @@
   "scripts": {
     "provision": "bun run scripts/provision.ts",
     "deploy:dev": "npx sst deploy --stage dev",
-    "deploy:prod": "npx sst deploy --stage production",
+    "deploy:prod": "npx sst deploy --stage prod",
     "dev": "npx sst dev --stage dev",
     "remove:dev": "npx sst remove --stage dev"
   },
