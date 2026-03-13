@@ -1,4 +1,3 @@
-import type { AttachmentMeta } from "@ses-inbox/core";
 import { Hono } from "hono";
 import { formatEmailsResponse } from "../../lib/format";
 import type { AppDeps } from "../../types";
@@ -73,7 +72,7 @@ export function createEmailRoutes(deps: AppDeps) {
 				return c.json({ error: "NOT_FOUND", message: "Email not found" }, 404);
 			}
 
-			const url = await deps.getSignedRawUrl(email.s3Key as string);
+			const url = await deps.getSignedRawUrl(email.s3Key);
 			return c.redirect(url, 302);
 		})
 		.get("/:messageId/attachments/:filename", async (c) => {
@@ -84,7 +83,7 @@ export function createEmailRoutes(deps: AppDeps) {
 				return c.json({ error: "NOT_FOUND", message: "Email not found" }, 404);
 			}
 
-			const attachments = (email.attachments as AttachmentMeta[]) ?? [];
+			const attachments = email.attachments ?? [];
 			const attachment = attachments.find((a) => a.filename === filename);
 			if (!attachment) {
 				return c.json(
