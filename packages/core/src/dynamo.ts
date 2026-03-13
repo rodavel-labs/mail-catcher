@@ -189,7 +189,21 @@ export async function getEmailByMessageId(
 		}),
 	);
 
-	return (result.Items?.[0] as EmailItem) ?? null;
+	const item = result.Items?.[0];
+	if (!item) return null;
+
+	return {
+		messageId: item.messageId as string,
+		inbox: item.PK as string,
+		sender: item.sender as string,
+		recipient: item.recipient as string,
+		subject: item.subject as string,
+		body: (item.body as string) ?? "",
+		htmlBody: (item.htmlBody as string) ?? "",
+		attachments: (item.attachments as AttachmentMeta[]) ?? [],
+		receivedAt: item.receivedAt as number,
+		s3Key: item.s3Key as string,
+	};
 }
 
 export async function getEmailRawByMessageId(
@@ -205,7 +219,23 @@ export async function getEmailRawByMessageId(
 		}),
 	);
 
-	return (result.Items?.[0] as RawEmailRecord) ?? null;
+	const item = result.Items?.[0];
+	if (!item) return null;
+
+	return {
+		PK: item.PK as string,
+		SK: item.SK as string,
+		messageId: item.messageId as string,
+		inbox: item.PK as string,
+		sender: item.sender as string,
+		recipient: item.recipient as string,
+		subject: item.subject as string,
+		body: (item.body as string) ?? "",
+		htmlBody: (item.htmlBody as string) ?? "",
+		attachments: (item.attachments as AttachmentMeta[]) ?? [],
+		receivedAt: item.receivedAt as number,
+		s3Key: item.s3Key as string,
+	};
 }
 
 export async function deleteEmail(pk: string, sk: string): Promise<void> {

@@ -10,6 +10,7 @@
 		"dev": "npx sst dev --stage dev",
 		"remove:dev": "npx sst remove --stage dev",
 		"test": "bun test --preload ./test-preload.ts apps/ packages/",
+		"test:e2e": "bun test e2e/tests/",
 		"lint": "biome check --fix"
 	},
 	"dependencies": {
@@ -26,6 +27,7 @@
 	},
 	"workspaces": [
 		"apps/*",
-		"packages/*"
+		"packages/*",
+		"e2e"
 	]
 }

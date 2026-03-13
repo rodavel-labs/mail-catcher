@@ -1,0 +1,13 @@
+{
+	"name": "@ses-inbox/e2e",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"test": "bun test",
+		"send": "bun run src/send-email.ts"
+	},
+	"type": "module",
+	"dependencies": {
+		"@aws-sdk/client-sesv2": "^3.1009.0"
+	}
+}
