@@ -16,6 +16,10 @@ export function createInfra() {
 				prefix: "incoming/",
 				expiresIn: "8 days",
 			},
+			{
+				prefix: "attachments/",
+				expiresIn: "8 days",
+			},
 		],
 		transform: {
 			policy: (args) => {

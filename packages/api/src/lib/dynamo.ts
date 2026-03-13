@@ -10,6 +10,14 @@ const client = DynamoDBDocumentClient.from(new DynamoDBClient());
 
 const SEVEN_DAYS_SEC = 7 * 24 * 60 * 60;
 
+export interface AttachmentMeta {
+	filename: string;
+	contentType: string;
+	size: number;
+	s3Key: string;
+	contentId?: string;
+}
+
 export interface EmailItem {
 	inbox: string;
 	messageId: string;
@@ -17,6 +25,8 @@ export interface EmailItem {
 	recipient: string;
 	subject: string;
 	body: string;
+	htmlBody: string;
+	attachments: AttachmentMeta[];
 	s3Key: string;
 	receivedAt: number;
 }
@@ -40,6 +50,8 @@ export async function putEmail(item: EmailItem) {
 				recipient: item.recipient,
 				subject: item.subject,
 				body: item.body,
+				htmlBody: item.htmlBody,
+				attachments: item.attachments,
 				s3Key: item.s3Key,
 				receivedAt: item.receivedAt,
 				ttl: ttl(),
@@ -83,6 +95,8 @@ export async function queryEmails({
 			recipient: item.recipient as string,
 			subject: item.subject as string,
 			body: (item.body as string) ?? "",
+			htmlBody: (item.htmlBody as string) ?? "",
+			attachments: (item.attachments as AttachmentMeta[]) ?? [],
 			receivedAt: item.receivedAt as number,
 			s3Key: item.s3Key as string,
 		})),

@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { handle } from "hono/aws-lambda";
 import { Resource } from "sst";
 
+import type { AttachmentMeta } from "./lib/dynamo";
 import { getEmailByMessageId, queryEmails } from "./lib/dynamo";
 import type { VerifyKey } from "./middleware/auth";
 import { createApiKeyAuth, hashKey } from "./middleware/auth";
@@ -18,6 +19,8 @@ export interface EmailQueryResult {
 		recipient: string;
 		subject: string;
 		body: string;
+		htmlBody: string;
+		attachments: AttachmentMeta[];
 		receivedAt: number;
 		s3Key: string;
 	}[];
@@ -35,6 +38,7 @@ export interface AppDeps {
 		messageId: string,
 	) => Promise<Record<string, unknown> | null>;
 	getSignedRawUrl: (s3Key: string) => Promise<string>;
+	getSignedAttachmentUrl: (s3Key: string) => Promise<string>;
 	verifyKey: VerifyKey;
 }
 
@@ -114,6 +118,27 @@ export function createApp(deps: AppDeps) {
 		return c.redirect(url, 302);
 	});
 
+	app.get("/emails/:messageId/attachments/:filename", async (c) => {
+		const { messageId, filename } = c.req.param();
+
+		const email = await deps.getEmailByMessageId(messageId);
+		if (!email) {
+			return c.json({ error: "NOT_FOUND", message: "Email not found" }, 404);
+		}
+
+		const attachments = (email.attachments as AttachmentMeta[]) ?? [];
+		const attachment = attachments.find((a) => a.filename === filename);
+		if (!attachment) {
+			return c.json(
+				{ error: "NOT_FOUND", message: "Attachment not found" },
+				404,
+			);
+		}
+
+		const url = await deps.getSignedAttachmentUrl(attachment.s3Key);
+		return c.redirect(url, 302);
+	});
+
 	return app;
 }
 
@@ -121,6 +146,10 @@ export function formatEmailsResponse(result: EmailQueryResult) {
 	return {
 		emails: result.emails.map(({ s3Key, ...rest }) => ({
 			...rest,
+			attachments: rest.attachments.map(({ s3Key: _, ...att }) => ({
+				...att,
+				url: `/emails/${rest.messageId}/attachments/${att.filename}`,
+			})),
 			rawUrl: `/emails/${rest.messageId}/raw`,
 		})),
 		nextCursor: result.nextCursor,
@@ -135,18 +164,21 @@ function sleep(ms: number) {
 const s3 = new S3Client();
 const ddbClient = DynamoDBDocumentClient.from(new DynamoDBClient());
 
+const signUrl = (s3Key: string) =>
+	getSignedUrl(
+		s3,
+		new GetObjectCommand({
+			Bucket: Resource.EmailBucket.name,
+			Key: s3Key,
+		}),
+		{ expiresIn: 900 },
+	);
+
 const app = createApp({
 	queryEmails,
 	getEmailByMessageId,
-	getSignedRawUrl: (s3Key) =>
-		getSignedUrl(
-			s3,
-			new GetObjectCommand({
-				Bucket: Resource.EmailBucket.name,
-				Key: s3Key,
-			}),
-			{ expiresIn: 900 },
-		),
+	getSignedRawUrl: signUrl,
+	getSignedAttachmentUrl: signUrl,
 	verifyKey: async (token) => {
 		const result = await ddbClient.send(
 			new GetCommand({

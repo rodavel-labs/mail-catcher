@@ -1,7 +1,7 @@
 {
 	"name": "ses-inbox",
 	"license": "MIT",
-  "version": "0.1.0",
+	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
 		"provision": "bun run scripts/provision.ts",

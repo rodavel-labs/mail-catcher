@@ -12,7 +12,26 @@ function mockDeps(overrides: Partial<AppDeps> = {}): AppDeps {
 		getSignedRawUrl: mock(() =>
 			Promise.resolve("https://s3.example.com/signed"),
 		),
+		getSignedAttachmentUrl: mock(() =>
+			Promise.resolve("https://s3.example.com/signed-attachment"),
+		),
 		verifyKey: mock(() => Promise.resolve(true)),
+		...overrides,
+	};
+}
+
+function makeEmail(overrides: Record<string, unknown> = {}) {
+	return {
+		messageId: "msg-1",
+		inbox: "test",
+		sender: "a@b.com",
+		recipient: "test@domain.com",
+		subject: "Hello",
+		body: "Hi plain",
+		htmlBody: "<p>Hi</p>",
+		attachments: [],
+		receivedAt: 1000,
+		s3Key: "incoming/abc",
 		...overrides,
 	};
 }
@@ -144,16 +163,7 @@ describe("GET /emails", () => {
 	});
 
 	test("returns formatted emails with rawUrl", async () => {
-		const email = {
-			messageId: "msg-1",
-			inbox: "test",
-			sender: "a@b.com",
-			recipient: "test@domain.com",
-			subject: "Hello",
-			body: "<p>Hi</p>",
-			receivedAt: 1000,
-			s3Key: "incoming/abc",
-		};
+		const email = makeEmail();
 		const queryEmails = mock(() =>
 			Promise.resolve({
 				emails: [email],
@@ -170,6 +180,40 @@ describe("GET /emails", () => {
 		expect(body.emails[0].rawUrl).toBe("/emails/msg-1/raw");
 		expect(body.emails[0].s3Key).toBeUndefined();
 		expect(body.emails[0].messageId).toBe("msg-1");
+	});
+
+	test("returns body, htmlBody, and attachments fields", async () => {
+		const email = makeEmail({
+			body: "Plain text",
+			htmlBody: "<p>HTML</p>",
+			attachments: [
+				{
+					filename: "doc.pdf",
+					contentType: "application/pdf",
+					size: 1024,
+					s3Key: "attachments/msg-1/doc.pdf",
+				},
+			],
+		});
+		const queryEmails = mock(() =>
+			Promise.resolve({
+				emails: [email],
+				nextCursor: undefined,
+				hasMore: false,
+			}),
+		);
+		const app = createApp(mockDeps({ queryEmails }));
+		const res = await app.request(authedRequest("/emails?inbox=test"));
+
+		const body = await res.json();
+		expect(body.emails[0].body).toBe("Plain text");
+		expect(body.emails[0].htmlBody).toBe("<p>HTML</p>");
+		expect(body.emails[0].attachments).toHaveLength(1);
+		expect(body.emails[0].attachments[0].filename).toBe("doc.pdf");
+		expect(body.emails[0].attachments[0].s3Key).toBeUndefined();
+		expect(body.emails[0].attachments[0].url).toBe(
+			"/emails/msg-1/attachments/doc.pdf",
+		);
 	});
 
 	test("returns pagination info", async () => {
@@ -200,16 +244,7 @@ describe("GET /emails", () => {
 	});
 
 	test("long-poll returns immediately when emails found", async () => {
-		const email = {
-			messageId: "msg-1",
-			inbox: "test",
-			sender: "a@b.com",
-			recipient: "test@domain.com",
-			subject: "Hello",
-			body: "",
-			receivedAt: 1000,
-			s3Key: "incoming/abc",
-		};
+		const email = makeEmail({ body: "", htmlBody: "" });
 		const queryEmails = mock(() =>
 			Promise.resolve({
 				emails: [email],
@@ -282,21 +317,89 @@ describe("GET /emails/:messageId/raw", () => {
 	});
 });
 
+describe("GET /emails/:messageId/attachments/:filename", () => {
+	test("returns 401 without auth", async () => {
+		const app = createApp(mockDeps());
+		const res = await app.request("/emails/msg-1/attachments/doc.pdf");
+
+		expect(res.status).toBe(401);
+	});
+
+	test("returns 404 when email not found", async () => {
+		const app = createApp(mockDeps());
+		const res = await app.request(
+			authedRequest("/emails/msg-1/attachments/doc.pdf"),
+		);
+
+		expect(res.status).toBe(404);
+		const body = await res.json();
+		expect(body.error).toBe("NOT_FOUND");
+	});
+
+	test("returns 404 when attachment not found", async () => {
+		const getEmailByMessageId = mock(() =>
+			Promise.resolve({
+				messageId: "msg-1",
+				attachments: [
+					{
+						filename: "other.pdf",
+						contentType: "application/pdf",
+						size: 100,
+						s3Key: "attachments/msg-1/other.pdf",
+					},
+				],
+			}),
+		);
+		const app = createApp(mockDeps({ getEmailByMessageId }));
+		const res = await app.request(
+			authedRequest("/emails/msg-1/attachments/doc.pdf"),
+		);
+
+		expect(res.status).toBe(404);
+		const body = await res.json();
+		expect(body.error).toBe("NOT_FOUND");
+		expect(body.message).toBe("Attachment not found");
+	});
+
+	test("redirects to signed URL when attachment found", async () => {
+		const getEmailByMessageId = mock(() =>
+			Promise.resolve({
+				messageId: "msg-1",
+				attachments: [
+					{
+						filename: "doc.pdf",
+						contentType: "application/pdf",
+						size: 1024,
+						s3Key: "attachments/msg-1/doc.pdf",
+					},
+				],
+			}),
+		);
+		const getSignedAttachmentUrl = mock(() =>
+			Promise.resolve("https://s3.example.com/signed-attachment-url"),
+		);
+		const app = createApp(
+			mockDeps({ getEmailByMessageId, getSignedAttachmentUrl }),
+		);
+		const res = await app.request(
+			authedRequest("/emails/msg-1/attachments/doc.pdf"),
+			{ redirect: "manual" },
+		);
+
+		expect(res.status).toBe(302);
+		expect(res.headers.get("Location")).toBe(
+			"https://s3.example.com/signed-attachment-url",
+		);
+		expect(getSignedAttachmentUrl).toHaveBeenCalledWith(
+			"attachments/msg-1/doc.pdf",
+		);
+	});
+});
+
 describe("formatEmailsResponse", () => {
 	test("strips s3Key and adds rawUrl", () => {
 		const result: EmailQueryResult = {
-			emails: [
-				{
-					messageId: "msg-1",
-					inbox: "test",
-					sender: "a@b.com",
-					recipient: "test@d.com",
-					subject: "Hi",
-					body: "<p>Hi</p>",
-					receivedAt: 1000,
-					s3Key: "incoming/abc",
-				},
-			],
+			emails: [makeEmail()],
 			nextCursor: undefined,
 			hasMore: false,
 		};
@@ -307,6 +410,39 @@ describe("formatEmailsResponse", () => {
 		expect(
 			(formatted.emails[0] as Record<string, unknown>).s3Key,
 		).toBeUndefined();
+	});
+
+	test("preserves body, htmlBody, and attachments", () => {
+		const result: EmailQueryResult = {
+			emails: [
+				makeEmail({
+					body: "plain",
+					htmlBody: "<p>html</p>",
+					attachments: [
+						{
+							filename: "f.txt",
+							contentType: "text/plain",
+							size: 5,
+							s3Key: "attachments/msg-1/f.txt",
+						},
+					],
+				}),
+			],
+			nextCursor: undefined,
+			hasMore: false,
+		};
+
+		const formatted = formatEmailsResponse(result);
+
+		expect(formatted.emails[0].body).toBe("plain");
+		expect(formatted.emails[0].htmlBody).toBe("<p>html</p>");
+		expect(formatted.emails[0].attachments).toHaveLength(1);
+		expect(
+			(formatted.emails[0].attachments[0] as Record<string, unknown>).s3Key,
+		).toBeUndefined();
+		expect(formatted.emails[0].attachments[0].url).toBe(
+			"/emails/msg-1/attachments/f.txt",
+		);
 	});
 
 	test("preserves pagination fields", () => {
