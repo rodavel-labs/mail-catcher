@@ -1,4 +1,4 @@
-import type { AttachmentMeta } from "./lib/dynamo";
+import type { AttachmentMeta, EmailItem } from "@ses-inbox/core";
 import type { VerifyKey } from "./middleware/auth";
 
 export interface EmailQueryResult {
@@ -26,7 +26,7 @@ export interface AppDeps {
 	}) => Promise<EmailQueryResult>;
 	getEmailByMessageId: (
 		messageId: string,
-	) => Promise<Record<string, unknown> | null>;
+	) => Promise<EmailItem | null>;
 	getSignedRawUrl: (s3Key: string) => Promise<string>;
 	getSignedAttachmentUrl: (s3Key: string) => Promise<string>;
 	verifyKey: VerifyKey;
