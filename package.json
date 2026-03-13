@@ -9,7 +9,7 @@
 		"deploy:prod": "npx sst deploy --stage prod",
 		"dev": "npx sst dev --stage dev",
 		"remove:dev": "npx sst remove --stage dev",
-		"test": "bun test --preload ./test-preload.ts packages/",
+		"test": "bun test --preload ./test-preload.ts apps/ packages/",
 		"lint": "biome check --fix"
 	},
 	"dependencies": {
@@ -25,6 +25,7 @@
 		"typescript": "^5.7.0"
 	},
 	"workspaces": [
+		"apps/*",
 		"packages/*"
 	]
 }

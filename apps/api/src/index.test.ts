@@ -16,6 +16,7 @@ function mockDeps(overrides: Partial<AppDeps> = {}): AppDeps {
 			Promise.resolve("https://s3.example.com/signed-attachment"),
 		),
 		verifyKey: mock(() => Promise.resolve(true)),
+		version: "0.1.0",
 		...overrides,
 	};
 }
@@ -64,10 +65,47 @@ describe("GET /health", () => {
 	});
 });
 
+describe("GET /version", () => {
+	test("returns version and supported API versions", async () => {
+		const app = createApp(mockDeps());
+		const res = await app.request("/version");
+
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.version).toBe("0.1.0");
+		expect(body.apiVersions).toEqual(["v1"]);
+	});
+
+	test("does not require auth", async () => {
+		const deps = mockDeps();
+		const app = createApp(deps);
+		const res = await app.request("/version");
+
+		expect(res.status).toBe(200);
+		expect(deps.verifyKey).not.toHaveBeenCalled();
+	});
+});
+
+describe("X-API-Version header", () => {
+	test("is set on v1 responses", async () => {
+		const app = createApp(mockDeps());
+		const res = await app.request(authedRequest("/v1/emails?inbox=test"));
+
+		expect(res.headers.get("X-API-Version")).toBe("v1");
+	});
+
+	test("is not set on root-level endpoints", async () => {
+		const app = createApp(mockDeps());
+		const res = await app.request("/health");
+
+		expect(res.headers.get("X-API-Version")).toBeNull();
+	});
+});
+
 describe("GET /emails", () => {
 	test("returns 401 without auth header", async () => {
 		const app = createApp(mockDeps());
-		const res = await app.request("/emails?inbox=test");
+		const res = await app.request("/v1/emails?inbox=test");
 
 		expect(res.status).toBe(401);
 		const body = await res.json();
@@ -78,14 +116,14 @@ describe("GET /emails", () => {
 		const app = createApp(
 			mockDeps({ verifyKey: () => Promise.resolve(false) }),
 		);
-		const res = await app.request(authedRequest("/emails?inbox=test"));
+		const res = await app.request(authedRequest("/v1/emails?inbox=test"));
 
 		expect(res.status).toBe(401);
 	});
 
 	test("returns 400 when inbox is missing", async () => {
 		const app = createApp(mockDeps());
-		const res = await app.request(authedRequest("/emails"));
+		const res = await app.request(authedRequest("/v1/emails"));
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -97,7 +135,7 @@ describe("GET /emails", () => {
 
 		for (const inbox of ["test@bad", "test bad", "test/bad", "<script>"]) {
 			const res = await app.request(
-				authedRequest(`/emails?inbox=${encodeURIComponent(inbox)}`),
+				authedRequest(`/v1/emails?inbox=${encodeURIComponent(inbox)}`),
 			);
 			expect(res.status).toBe(400);
 			const body = await res.json();
@@ -115,7 +153,7 @@ describe("GET /emails", () => {
 			"user_name",
 			"User123",
 		]) {
-			const res = await app.request(authedRequest(`/emails?inbox=${inbox}`));
+			const res = await app.request(authedRequest(`/v1/emails?inbox=${inbox}`));
 			expect(res.status).toBe(200);
 		}
 	});
@@ -123,12 +161,14 @@ describe("GET /emails", () => {
 	test("returns 400 for limit out of range", async () => {
 		const app = createApp(mockDeps());
 
-		const res0 = await app.request(authedRequest("/emails?inbox=test&limit=0"));
+		const res0 = await app.request(
+			authedRequest("/v1/emails?inbox=test&limit=0"),
+		);
 		expect(res0.status).toBe(400);
 		expect((await res0.json()).error).toBe("INVALID_LIMIT");
 
 		const res101 = await app.request(
-			authedRequest("/emails?inbox=test&limit=101"),
+			authedRequest("/v1/emails?inbox=test&limit=101"),
 		);
 		expect(res101.status).toBe(400);
 		expect((await res101.json()).error).toBe("INVALID_LIMIT");
@@ -139,7 +179,7 @@ describe("GET /emails", () => {
 			Promise.resolve({ emails: [], nextCursor: undefined, hasMore: false }),
 		);
 		const app = createApp(mockDeps({ queryEmails }));
-		await app.request(authedRequest("/emails?inbox=test"));
+		await app.request(authedRequest("/v1/emails?inbox=test"));
 
 		expect(queryEmails).toHaveBeenCalledWith({
 			inbox: "test",
@@ -153,7 +193,9 @@ describe("GET /emails", () => {
 			Promise.resolve({ emails: [], nextCursor: undefined, hasMore: false }),
 		);
 		const app = createApp(mockDeps({ queryEmails }));
-		await app.request(authedRequest("/emails?inbox=test&limit=10&cursor=abc"));
+		await app.request(
+			authedRequest("/v1/emails?inbox=test&limit=10&cursor=abc"),
+		);
 
 		expect(queryEmails).toHaveBeenCalledWith({
 			inbox: "test",
@@ -172,12 +214,12 @@ describe("GET /emails", () => {
 			}),
 		);
 		const app = createApp(mockDeps({ queryEmails }));
-		const res = await app.request(authedRequest("/emails?inbox=test"));
+		const res = await app.request(authedRequest("/v1/emails?inbox=test"));
 
 		expect(res.status).toBe(200);
 		const body = await res.json();
 		expect(body.emails).toHaveLength(1);
-		expect(body.emails[0].rawUrl).toBe("/emails/msg-1/raw");
+		expect(body.emails[0].rawUrl).toBe("/v1/emails/msg-1/raw");
 		expect(body.emails[0].s3Key).toBeUndefined();
 		expect(body.emails[0].messageId).toBe("msg-1");
 	});
@@ -203,7 +245,7 @@ describe("GET /emails", () => {
 			}),
 		);
 		const app = createApp(mockDeps({ queryEmails }));
-		const res = await app.request(authedRequest("/emails?inbox=test"));
+		const res = await app.request(authedRequest("/v1/emails?inbox=test"));
 
 		const body = await res.json();
 		expect(body.emails[0].body).toBe("Plain text");
@@ -212,7 +254,7 @@ describe("GET /emails", () => {
 		expect(body.emails[0].attachments[0].filename).toBe("doc.pdf");
 		expect(body.emails[0].attachments[0].s3Key).toBeUndefined();
 		expect(body.emails[0].attachments[0].url).toBe(
-			"/emails/msg-1/attachments/doc.pdf",
+			"/v1/emails/msg-1/attachments/doc.pdf",
 		);
 	});
 
@@ -221,7 +263,7 @@ describe("GET /emails", () => {
 			Promise.resolve({ emails: [], nextCursor: "cursor-123", hasMore: true }),
 		);
 		const app = createApp(mockDeps({ queryEmails }));
-		const res = await app.request(authedRequest("/emails?inbox=test"));
+		const res = await app.request(authedRequest("/v1/emails?inbox=test"));
 
 		const body = await res.json();
 		expect(body.nextCursor).toBe("cursor-123");
@@ -234,7 +276,7 @@ describe("GET /emails", () => {
 		);
 		const app = createApp(mockDeps({ queryEmails }));
 		const res = await app.request(
-			authedRequest("/emails?inbox=test&wait=true&timeout=1"),
+			authedRequest("/v1/emails?inbox=test&wait=true&timeout=1"),
 		);
 
 		expect(res.status).toBe(200);
@@ -256,7 +298,7 @@ describe("GET /emails", () => {
 
 		const start = Date.now();
 		const res = await app.request(
-			authedRequest("/emails?inbox=test&wait=true&timeout=10"),
+			authedRequest("/v1/emails?inbox=test&wait=true&timeout=10"),
 		);
 		const elapsed = Date.now() - start;
 
@@ -272,7 +314,7 @@ describe("GET /emails", () => {
 		);
 		const app = createApp(mockDeps({ queryEmails }));
 		const res = await app.request(
-			authedRequest("/emails?inbox=test&wait=true&timeout=1"),
+			authedRequest("/v1/emails?inbox=test&wait=true&timeout=1"),
 		);
 
 		expect(res.status).toBe(200);
@@ -283,14 +325,14 @@ describe("GET /emails", () => {
 describe("GET /emails/:messageId/raw", () => {
 	test("returns 401 without auth", async () => {
 		const app = createApp(mockDeps());
-		const res = await app.request("/emails/msg-1/raw");
+		const res = await app.request("/v1/emails/msg-1/raw");
 
 		expect(res.status).toBe(401);
 	});
 
 	test("returns 404 when email not found", async () => {
 		const app = createApp(mockDeps());
-		const res = await app.request(authedRequest("/emails/msg-1/raw"));
+		const res = await app.request(authedRequest("/v1/emails/msg-1/raw"));
 
 		expect(res.status).toBe(404);
 		const body = await res.json();
@@ -305,7 +347,7 @@ describe("GET /emails/:messageId/raw", () => {
 			Promise.resolve("https://s3.example.com/signed-url"),
 		);
 		const app = createApp(mockDeps({ getEmailByMessageId, getSignedRawUrl }));
-		const res = await app.request(authedRequest("/emails/msg-1/raw"), {
+		const res = await app.request(authedRequest("/v1/emails/msg-1/raw"), {
 			redirect: "manual",
 		});
 
@@ -320,7 +362,7 @@ describe("GET /emails/:messageId/raw", () => {
 describe("GET /emails/:messageId/attachments/:filename", () => {
 	test("returns 401 without auth", async () => {
 		const app = createApp(mockDeps());
-		const res = await app.request("/emails/msg-1/attachments/doc.pdf");
+		const res = await app.request("/v1/emails/msg-1/attachments/doc.pdf");
 
 		expect(res.status).toBe(401);
 	});
@@ -328,7 +370,7 @@ describe("GET /emails/:messageId/attachments/:filename", () => {
 	test("returns 404 when email not found", async () => {
 		const app = createApp(mockDeps());
 		const res = await app.request(
-			authedRequest("/emails/msg-1/attachments/doc.pdf"),
+			authedRequest("/v1/emails/msg-1/attachments/doc.pdf"),
 		);
 
 		expect(res.status).toBe(404);
@@ -352,7 +394,7 @@ describe("GET /emails/:messageId/attachments/:filename", () => {
 		);
 		const app = createApp(mockDeps({ getEmailByMessageId }));
 		const res = await app.request(
-			authedRequest("/emails/msg-1/attachments/doc.pdf"),
+			authedRequest("/v1/emails/msg-1/attachments/doc.pdf"),
 		);
 
 		expect(res.status).toBe(404);
@@ -382,7 +424,7 @@ describe("GET /emails/:messageId/attachments/:filename", () => {
 			mockDeps({ getEmailByMessageId, getSignedAttachmentUrl }),
 		);
 		const res = await app.request(
-			authedRequest("/emails/msg-1/attachments/doc.pdf"),
+			authedRequest("/v1/emails/msg-1/attachments/doc.pdf"),
 			{ redirect: "manual" },
 		);
 
@@ -406,7 +448,7 @@ describe("formatEmailsResponse", () => {
 
 		const formatted = formatEmailsResponse(result);
 
-		expect(formatted.emails[0].rawUrl).toBe("/emails/msg-1/raw");
+		expect(formatted.emails[0].rawUrl).toBe("/v1/emails/msg-1/raw");
 		expect(
 			(formatted.emails[0] as Record<string, unknown>).s3Key,
 		).toBeUndefined();
@@ -441,7 +483,7 @@ describe("formatEmailsResponse", () => {
 			(formatted.emails[0].attachments[0] as Record<string, unknown>).s3Key,
 		).toBeUndefined();
 		expect(formatted.emails[0].attachments[0].url).toBe(
-			"/emails/msg-1/attachments/f.txt",
+			"/v1/emails/msg-1/attachments/f.txt",
 		);
 	});
 

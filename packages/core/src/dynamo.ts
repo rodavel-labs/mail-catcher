@@ -105,7 +105,9 @@ export async function queryEmails({
 	};
 }
 
-export async function getEmailByMessageId(messageId: string) {
+export async function getEmailByMessageId(
+	messageId: string,
+): Promise<EmailItem | null> {
 	const result = await client.send(
 		new QueryCommand({
 			TableName: Resource.EmailsTable.name,
@@ -116,5 +118,5 @@ export async function getEmailByMessageId(messageId: string) {
 		}),
 	);
 
-	return result.Items?.[0] ?? null;
+	return (result.Items?.[0] as EmailItem) ?? null;
 }

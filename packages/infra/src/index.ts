@@ -61,7 +61,7 @@ export function createInfra() {
 	});
 
 	const api = new sst.aws.Function("Api", {
-		handler: "packages/api/src/index.handler",
+		handler: "apps/api/src/index.handler",
 		url: true,
 		timeout: "30 seconds",
 		link: [emailsTable, emailBucket, apiKeysTable],
@@ -72,7 +72,7 @@ export function createInfra() {
 			{
 				name: "IngestFn",
 				function: {
-					handler: "packages/api/src/ingest.handler",
+					handler: "apps/ingest/src/ingest.handler",
 					timeout: "30 seconds",
 					link: [emailsTable, emailBucket],
 					environment: {
