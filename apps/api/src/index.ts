@@ -1,8 +1,19 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+	DeleteObjectsCommand,
+	GetObjectCommand,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { getEmailByMessageId, queryEmails } from "@ses-inbox/core";
+import {
+	batchDeleteEmails,
+	deleteEmail,
+	getEmailByMessageId,
+	getEmailRawByMessageId,
+	queryAllEmailKeys,
+	queryEmails,
+} from "@ses-inbox/core";
 import { Hono } from "hono";
 import { handle } from "hono/aws-lambda";
 import { Resource } from "sst";
@@ -45,9 +56,28 @@ const signUrl = (s3Key: string) =>
 		{ expiresIn: 900 },
 	);
 
+const S3_DELETE_BATCH_SIZE = 1000;
+
+const deleteS3Objects = async (keys: string[]) => {
+	for (let i = 0; i < keys.length; i += S3_DELETE_BATCH_SIZE) {
+		const batch = keys.slice(i, i + S3_DELETE_BATCH_SIZE);
+		await s3.send(
+			new DeleteObjectsCommand({
+				Bucket: Resource.EmailBucket.name,
+				Delete: { Objects: batch.map((Key) => ({ Key })) },
+			}),
+		);
+	}
+};
+
 const app = createApp({
 	queryEmails,
 	getEmailByMessageId,
+	getEmailRawByMessageId,
+	deleteEmail,
+	queryAllEmailKeys,
+	batchDeleteEmails,
+	deleteS3Objects,
 	getSignedRawUrl: signUrl,
 	getSignedAttachmentUrl: signUrl,
 	verifyKey: async (token) => {

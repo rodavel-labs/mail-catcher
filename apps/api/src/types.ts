@@ -1,4 +1,9 @@
-import type { AttachmentMeta, EmailItem } from "@ses-inbox/core";
+import type {
+	AttachmentMeta,
+	EmailFilters,
+	EmailItem,
+	RawEmailRecord,
+} from "@ses-inbox/core";
 import type { VerifyKey } from "./middleware/auth";
 
 export interface EmailQueryResult {
@@ -23,10 +28,21 @@ export interface AppDeps {
 		inbox: string;
 		cursor?: string;
 		limit?: number;
+		filters?: EmailFilters;
 	}) => Promise<EmailQueryResult>;
-	getEmailByMessageId: (
-		messageId: string,
-	) => Promise<EmailItem | null>;
+	getEmailByMessageId: (messageId: string) => Promise<EmailItem | null>;
+	getEmailRawByMessageId: (messageId: string) => Promise<RawEmailRecord | null>;
+	deleteEmail: (pk: string, sk: string) => Promise<void>;
+	queryAllEmailKeys: (inbox: string) => Promise<
+		Array<{
+			PK: string;
+			SK: string;
+			s3Key: string;
+			attachments: AttachmentMeta[];
+		}>
+	>;
+	batchDeleteEmails: (keys: Array<{ PK: string; SK: string }>) => Promise<void>;
+	deleteS3Objects: (keys: string[]) => Promise<void>;
 	getSignedRawUrl: (s3Key: string) => Promise<string>;
 	getSignedAttachmentUrl: (s3Key: string) => Promise<string>;
 	verifyKey: VerifyKey;
