@@ -73,4 +73,4 @@ curl -H "Authorization: Bearer <token>" \
 
 ## License
 
-Private
+[MIT](./LICENSE)
