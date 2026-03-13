@@ -9,6 +9,11 @@ function mockDeps(overrides: Partial<AppDeps> = {}): AppDeps {
 			Promise.resolve({ emails: [], nextCursor: undefined, hasMore: false }),
 		),
 		getEmailByMessageId: mock(() => Promise.resolve(null)),
+		getEmailRawByMessageId: mock(() => Promise.resolve(null)),
+		deleteEmail: mock(() => Promise.resolve()),
+		queryAllEmailKeys: mock(() => Promise.resolve([])),
+		batchDeleteEmails: mock(() => Promise.resolve()),
+		deleteS3Objects: mock(() => Promise.resolve()),
 		getSignedRawUrl: mock(() =>
 			Promise.resolve("https://s3.example.com/signed"),
 		),
@@ -185,6 +190,7 @@ describe("GET /emails", () => {
 			inbox: "test",
 			cursor: undefined,
 			limit: 50,
+			filters: undefined,
 		});
 	});
 
@@ -201,6 +207,7 @@ describe("GET /emails", () => {
 			inbox: "test",
 			cursor: "abc",
 			limit: 10,
+			filters: undefined,
 		});
 	});
 
@@ -341,7 +348,7 @@ describe("GET /emails/:messageId/raw", () => {
 
 	test("redirects to signed URL when email found", async () => {
 		const getEmailByMessageId = mock(() =>
-			Promise.resolve({ s3Key: "incoming/abc", messageId: "msg-1" }),
+			Promise.resolve(makeEmail({ s3Key: "incoming/abc", messageId: "msg-1" })),
 		);
 		const getSignedRawUrl = mock(() =>
 			Promise.resolve("https://s3.example.com/signed-url"),
@@ -380,17 +387,19 @@ describe("GET /emails/:messageId/attachments/:filename", () => {
 
 	test("returns 404 when attachment not found", async () => {
 		const getEmailByMessageId = mock(() =>
-			Promise.resolve({
-				messageId: "msg-1",
-				attachments: [
-					{
-						filename: "other.pdf",
-						contentType: "application/pdf",
-						size: 100,
-						s3Key: "attachments/msg-1/other.pdf",
-					},
-				],
-			}),
+			Promise.resolve(
+				makeEmail({
+					messageId: "msg-1",
+					attachments: [
+						{
+							filename: "other.pdf",
+							contentType: "application/pdf",
+							size: 100,
+							s3Key: "attachments/msg-1/other.pdf",
+						},
+					],
+				}),
+			),
 		);
 		const app = createApp(mockDeps({ getEmailByMessageId }));
 		const res = await app.request(
@@ -405,17 +414,19 @@ describe("GET /emails/:messageId/attachments/:filename", () => {
 
 	test("redirects to signed URL when attachment found", async () => {
 		const getEmailByMessageId = mock(() =>
-			Promise.resolve({
-				messageId: "msg-1",
-				attachments: [
-					{
-						filename: "doc.pdf",
-						contentType: "application/pdf",
-						size: 1024,
-						s3Key: "attachments/msg-1/doc.pdf",
-					},
-				],
-			}),
+			Promise.resolve(
+				makeEmail({
+					messageId: "msg-1",
+					attachments: [
+						{
+							filename: "doc.pdf",
+							contentType: "application/pdf",
+							size: 1024,
+							s3Key: "attachments/msg-1/doc.pdf",
+						},
+					],
+				}),
+			),
 		);
 		const getSignedAttachmentUrl = mock(() =>
 			Promise.resolve("https://s3.example.com/signed-attachment-url"),
