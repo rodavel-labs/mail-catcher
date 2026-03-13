@@ -1,6 +1,5 @@
+import type { AttachmentMeta } from "@ses-inbox/core";
 import { Hono } from "hono";
-
-import type { AttachmentMeta } from "../../lib/dynamo";
 import { formatEmailsResponse } from "../../lib/format";
 import type { AppDeps } from "../../types";
 
@@ -71,10 +70,7 @@ export function createEmailRoutes(deps: AppDeps) {
 
 			const email = await deps.getEmailByMessageId(messageId);
 			if (!email) {
-				return c.json(
-					{ error: "NOT_FOUND", message: "Email not found" },
-					404,
-				);
+				return c.json({ error: "NOT_FOUND", message: "Email not found" }, 404);
 			}
 
 			const url = await deps.getSignedRawUrl(email.s3Key as string);
@@ -85,10 +81,7 @@ export function createEmailRoutes(deps: AppDeps) {
 
 			const email = await deps.getEmailByMessageId(messageId);
 			if (!email) {
-				return c.json(
-					{ error: "NOT_FOUND", message: "Email not found" },
-					404,
-				);
+				return c.json({ error: "NOT_FOUND", message: "Email not found" }, 404);
 			}
 
 			const attachments = (email.attachments as AttachmentMeta[]) ?? [];

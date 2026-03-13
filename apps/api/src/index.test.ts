@@ -161,7 +161,9 @@ describe("GET /emails", () => {
 	test("returns 400 for limit out of range", async () => {
 		const app = createApp(mockDeps());
 
-		const res0 = await app.request(authedRequest("/v1/emails?inbox=test&limit=0"));
+		const res0 = await app.request(
+			authedRequest("/v1/emails?inbox=test&limit=0"),
+		);
 		expect(res0.status).toBe(400);
 		expect((await res0.json()).error).toBe("INVALID_LIMIT");
 
@@ -191,7 +193,9 @@ describe("GET /emails", () => {
 			Promise.resolve({ emails: [], nextCursor: undefined, hasMore: false }),
 		);
 		const app = createApp(mockDeps({ queryEmails }));
-		await app.request(authedRequest("/v1/emails?inbox=test&limit=10&cursor=abc"));
+		await app.request(
+			authedRequest("/v1/emails?inbox=test&limit=10&cursor=abc"),
+		);
 
 		expect(queryEmails).toHaveBeenCalledWith({
 			inbox: "test",

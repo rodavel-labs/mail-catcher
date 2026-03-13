@@ -3,14 +3,13 @@ import {
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
+import type { AttachmentMeta, EmailItem } from "@ses-inbox/core";
+import { putEmail } from "@ses-inbox/core";
 import type { S3Event } from "aws-lambda";
 import type { AddressObject } from "mailparser";
 import { simpleParser } from "mailparser";
 import { Resource } from "sst";
-
-import type { AttachmentMeta, EmailItem } from "./lib/dynamo";
-import { putEmail } from "./lib/dynamo";
-import { extractInbox } from "./lib/email-parser";
+import { extractInbox } from "./email-parser";
 
 export type { EmailItem };
 
@@ -61,11 +60,18 @@ export function createIngestHandler(deps: IngestDeps) {
 				const idx = attachments.length;
 
 				if (deps.maxAttachments != null && idx >= deps.maxAttachments) {
-					console.warn(`Skipping attachment ${idx}: exceeds maxAttachments (${deps.maxAttachments})`);
+					console.warn(
+						`Skipping attachment ${idx}: exceeds maxAttachments (${deps.maxAttachments})`,
+					);
 					continue;
 				}
-				if (deps.maxAttachmentSize != null && att.size > deps.maxAttachmentSize) {
-					console.warn(`Skipping attachment "${att.filename}": size ${att.size} exceeds maxAttachmentSize (${deps.maxAttachmentSize})`);
+				if (
+					deps.maxAttachmentSize != null &&
+					att.size > deps.maxAttachmentSize
+				) {
+					console.warn(
+						`Skipping attachment "${att.filename}": size ${att.size} exceeds maxAttachmentSize (${deps.maxAttachmentSize})`,
+					);
 					continue;
 				}
 
