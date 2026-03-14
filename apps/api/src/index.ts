@@ -14,7 +14,9 @@ import {
 	queryAllEmailKeys,
 	queryEmails,
 } from "@ses-inbox/core";
+import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";
+import { openAPIRouteHandler } from "hono-openapi";
 import { handle } from "hono/aws-lambda";
 import { Resource } from "sst";
 import { CURRENT_API_VERSION } from "./lib/versioning";
@@ -30,7 +32,7 @@ export type { AppDeps, EmailQueryResult } from "./types";
 export function createApp(deps: AppDeps) {
 	const v1 = createV1Routes(deps);
 
-	return new Hono()
+	const app = new Hono()
 		.get("/health", (c) => c.json({ status: "ok", timestamp: Date.now() }))
 		.get("/version", (c) =>
 			c.json({
@@ -39,6 +41,26 @@ export function createApp(deps: AppDeps) {
 			}),
 		)
 		.route("/v1", v1);
+
+	return app
+		.get(
+			"/openapi.json",
+			openAPIRouteHandler(app, {
+				documentation: {
+					info: {
+						title: "ses-inbox",
+						version: deps.version,
+						description: "Serverless email receiving API powered by AWS SES",
+					},
+					components: {
+						securitySchemes: {
+							BearerAuth: { type: "http", scheme: "bearer" },
+						},
+					},
+				},
+			}),
+		)
+		.get("/docs", Scalar({ url: "/openapi.json" }));
 }
 
 export type AppType = ReturnType<typeof createApp>;

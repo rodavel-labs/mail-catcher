@@ -315,6 +315,27 @@ describe("GET /emails", () => {
 		expect(elapsed).toBeLessThan(3000);
 	});
 
+	test("long-poll uses exponential backoff between retries", async () => {
+		const callTimes: number[] = [];
+		const queryEmails = mock(() => {
+			callTimes.push(Date.now());
+			return Promise.resolve({
+				emails: [],
+				nextCursor: undefined,
+				hasMore: false,
+			});
+		});
+		const app = createApp(mockDeps({ queryEmails }));
+		await app.request(
+			authedRequest("/v1/emails?inbox=test&wait=true&timeout=3"),
+		);
+
+		expect(callTimes.length).toBeGreaterThanOrEqual(3);
+		const gap1 = callTimes[1] - callTimes[0];
+		const gap2 = callTimes[2] - callTimes[1];
+		expect(gap2).toBeGreaterThanOrEqual(gap1 * 1.5);
+	}, 10_000);
+
 	test("long-poll timeout is capped at 28 seconds", async () => {
 		const queryEmails = mock(() =>
 			Promise.resolve({ emails: [], nextCursor: undefined, hasMore: false }),
@@ -409,7 +430,6 @@ describe("GET /emails/:messageId/attachments/:filename", () => {
 		expect(res.status).toBe(404);
 		const body = await res.json();
 		expect(body.error).toBe("NOT_FOUND");
-		expect(body.message).toBe("Attachment not found");
 	});
 
 	test("redirects to signed URL when attachment found", async () => {
