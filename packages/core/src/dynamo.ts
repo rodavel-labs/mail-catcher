@@ -13,6 +13,10 @@ const client = DynamoDBDocumentClient.from(new DynamoDBClient());
 const SEVEN_DAYS_SEC = 7 * 24 * 60 * 60;
 const BATCH_DELETE_SIZE = 25;
 
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export interface AttachmentMeta {
 	filename: string;
 	contentType: string;
@@ -133,33 +137,41 @@ export async function queryEmails({
 	limit = 50,
 	filters,
 }: QueryEmailsOpts) {
-	const keyCondition = cursor ? "PK = :pk AND SK < :sk" : "PK = :pk";
-	const keyValues: Record<string, unknown> = cursor
-		? { ":pk": inbox, ":sk": cursor }
-		: { ":pk": inbox };
-
 	const filter = filters ? buildFilterExpression(filters) : undefined;
+	const collected: Record<string, unknown>[] = [];
+	let exclusiveStartKey: Record<string, unknown> | undefined;
+	let isFirstPage = true;
 
-	const result = await client.send(
-		new QueryCommand({
-			TableName: Resource.EmailsTable.name,
-			KeyConditionExpression: keyCondition,
-			ExpressionAttributeValues: {
-				...keyValues,
-				...filter?.ExpressionAttributeValues,
-			},
-			ExpressionAttributeNames: filter?.ExpressionAttributeNames,
-			FilterExpression: filter?.FilterExpression,
-			ScanIndexForward: false,
-			Limit: limit,
-		}),
-	);
+	do {
+		const useCursor = isFirstPage && cursor != null;
+		const keyCondition = useCursor ? "PK = :pk AND SK < :sk" : "PK = :pk";
+		const keyValues: Record<string, unknown> = useCursor
+			? { ":pk": inbox, ":sk": cursor }
+			: { ":pk": inbox };
 
-	const items = result.Items ?? [];
-	const lastEvaluatedKey = result.LastEvaluatedKey;
+		const result = await client.send(
+			new QueryCommand({
+				TableName: Resource.EmailsTable.name,
+				KeyConditionExpression: keyCondition,
+				ExpressionAttributeValues: {
+					...keyValues,
+					...filter?.ExpressionAttributeValues,
+				},
+				ExpressionAttributeNames: filter?.ExpressionAttributeNames,
+				FilterExpression: filter?.FilterExpression,
+				ScanIndexForward: false,
+				Limit: limit - collected.length,
+				ExclusiveStartKey: isFirstPage ? undefined : exclusiveStartKey,
+			}),
+		);
+
+		isFirstPage = false;
+		collected.push(...(result.Items ?? []));
+		exclusiveStartKey = result.LastEvaluatedKey;
+	} while (filter && collected.length < limit && exclusiveStartKey);
 
 	return {
-		emails: items.map((item) => ({
+		emails: collected.map((item) => ({
 			messageId: item.messageId as string,
 			inbox: item.PK as string,
 			sender: item.sender as string,
@@ -171,8 +183,8 @@ export async function queryEmails({
 			receivedAt: item.receivedAt as number,
 			s3Key: item.s3Key as string,
 		})),
-		nextCursor: (lastEvaluatedKey?.SK as string) ?? undefined,
-		hasMore: lastEvaluatedKey !== undefined,
+		nextCursor: (exclusiveStartKey?.SK as string) ?? undefined,
+		hasMore: exclusiveStartKey !== undefined,
 	};
 }
 
@@ -294,14 +306,27 @@ export async function batchDeleteEmails(
 ): Promise<void> {
 	for (let i = 0; i < keys.length; i += BATCH_DELETE_SIZE) {
 		const batch = keys.slice(i, i + BATCH_DELETE_SIZE);
-		await client.send(
-			new BatchWriteCommand({
-				RequestItems: {
-					[Resource.EmailsTable.name]: batch.map((key) => ({
-						DeleteRequest: { Key: { PK: key.PK, SK: key.SK } },
-					})),
-				},
-			}),
-		);
+		let requestItems: NonNullable<
+			BatchWriteCommand["input"]["RequestItems"]
+		> = {
+			[Resource.EmailsTable.name]: batch.map((key) => ({
+				DeleteRequest: { Key: { PK: key.PK, SK: key.SK } },
+			})),
+		};
+
+		let delay = 100;
+		while (Object.keys(requestItems).length > 0) {
+			const result = await client.send(
+				new BatchWriteCommand({ RequestItems: requestItems }),
+			);
+			const unprocessed = result.UnprocessedItems;
+			if (unprocessed && Object.keys(unprocessed).length > 0) {
+				requestItems = unprocessed;
+				await sleep(delay);
+				delay = Math.min(delay * 2, 5000);
+			} else {
+				break;
+			}
+		}
 	}
 }

@@ -17,17 +17,14 @@ export function createApiKeyAuth(verifyKey: VerifyKey) {
 	return createMiddleware(async (c, next) => {
 		const header = c.req.header("Authorization");
 		if (!header?.startsWith("Bearer ")) {
-			return c.json(
-				{ error: "UNAUTHORIZED", message: "Missing or invalid bearer token" },
-				401,
-			);
+			return c.json({ error: "UNAUTHORIZED" }, 401);
 		}
 
 		const token = header.slice(7);
 		const valid = await verifyKey(token);
 
 		if (!valid) {
-			return c.json({ error: "UNAUTHORIZED", message: "Invalid API key" }, 401);
+			return c.json({ error: "UNAUTHORIZED" }, 401);
 		}
 
 		await next();
