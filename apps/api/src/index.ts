@@ -60,7 +60,15 @@ export function createApp(deps: AppDeps) {
 				},
 			}),
 		)
-		.get("/docs", Scalar({ url: "/openapi.json" }));
+		.get(
+			"/docs",
+			Scalar({
+				url: "/openapi.json",
+				authentication: {
+					preferredSecurityScheme: "BearerAuth",
+				},
+			}),
+		);
 }
 
 export type AppType = ReturnType<typeof createApp>;
