@@ -4,6 +4,7 @@ export const SES_DOMAIN = requiredEnv("SES_DOMAIN");
 
 function loadApiUrl(): string {
 	if (process.env.API_URL) return process.env.API_URL;
+	if (process.env.API_DOMAIN) return `https://${process.env.API_DOMAIN}`;
 
 	try {
 		const { readFileSync } = require("node:fs");
@@ -11,7 +12,7 @@ function loadApiUrl(): string {
 		if (outputs.apiUrl) return outputs.apiUrl;
 	} catch {}
 
-	throw new Error("API_URL is required in .env or .sst/outputs.json");
+	throw new Error("API_URL, API_DOMAIN, or apiUrl in .sst/outputs.json is required");
 }
 
 function requiredEnv(name: string): string {
