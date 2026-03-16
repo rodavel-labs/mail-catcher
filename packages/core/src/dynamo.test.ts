@@ -207,10 +207,9 @@ describe("mapEmailItem", () => {
 		expect(result.ttl).toBeUndefined();
 	});
 
-	test.each([
-		undefined,
-		null,
-	])("defaults body to empty string when %s", (val: undefined | null) => {
+	test.each([undefined, null])("defaults body to empty string when %s", (val:
+		| undefined
+		| null) => {
 		const result = mapEmailItem(makeRawItem({ body: val }));
 
 		expect(result.body).toBe("");
