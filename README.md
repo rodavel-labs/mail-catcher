@@ -1,5 +1,7 @@
 # ses-inbox
 
+[![CI](https://github.com/RodPaDev/ses-inbox/actions/workflows/ci.yml/badge.svg)](https://github.com/RodPaDev/ses-inbox/actions/workflows/ci.yml)
+
 Serverless inbound email API. Receives emails via AWS SES, stores raw `.eml` files in S3, indexes metadata in DynamoDB, and exposes a REST API to query and retrieve them.
 
 Built for E2E testing workflows and email ingestion pipelines.
