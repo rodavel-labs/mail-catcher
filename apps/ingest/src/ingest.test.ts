@@ -1,8 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
+import type { EmailItem } from "@ses-inbox/core";
 import type { S3Event, S3EventRecord } from "aws-lambda";
-
-import type { EmailItem, IngestDeps } from "./ingest";
-import { createIngestHandler } from "./ingest";
+import { createIngestHandler, type IngestDeps } from "./ingest";
 
 function makeS3Event(...records: { bucket: string; key: string }[]): S3Event {
 	return {
