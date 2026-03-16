@@ -60,7 +60,9 @@ export function createSesInbound({
 		recipients: [domain],
 		s3Actions: [
 			{
-				bucketName: bucketArn.apply((arn: string) => arn.split(":").pop()!),
+				bucketName: bucketArn.apply(
+					(arn: string) => arn.split(":").pop() ?? "",
+				),
 				objectKeyPrefix: "incoming/",
 				position: 1,
 			},

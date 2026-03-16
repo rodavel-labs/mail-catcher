@@ -1,152 +1,150 @@
 # Deployment Guide
 
-## Overview
+ses-inbox deploys to AWS using [SST v4](https://sst.dev) (built on Pulumi).
 
-ses-inbox deploys to AWS using [SST v4](https://sst.dev) (built on Pulumi). The deployment creates:
+## Prerequisites
 
-| Resource | Purpose |
-|----------|---------|
-| **S3 Bucket** | Stores raw `.eml` files (8-day lifecycle) |
-| **DynamoDB Tables** | Email metadata index (7-day TTL) + API keys |
-| **API Lambda** | Hono HTTP handler for the REST API |
-| **Ingest Lambda** | S3 event handler that parses emails into DynamoDB |
-| **SES Domain Identity** | Verifies your domain for inbound email |
-| **SES Receipt Rules** | Catch-all rule that routes emails to S3 |
-| **DNS Records** (optional) | MX + TXT verification records in Route 53 |
+- AWS account with credentials configured (`AWS_PROFILE` or environment variables)
+- [Bun](https://bun.sh) installed
+- A domain or subdomain you control for receiving emails
 
-## Stages
+> **Important:** If you are **not** using Route 53 for DNS and want a custom API domain, you must provision and validate an ACM certificate **before** deploying. The certificate must be in `us-east-1`, match your `API_DOMAIN` exactly, and show status **Issued**. If the certificate is still pending validation, the deploy will fail with `reading ACM Certificates: empty result`. See [Step 2](#step-2-provision-acm-certificate-external-dns-only) for details.
 
-SST uses **stages** to isolate environments. Each stage creates its own set of resources.
+## Step 1: Configure environment variables
+
+Copy `.env.example` to `.env` and fill in the values:
 
 ```bash
-bun run deploy:dev       # Deploy to dev stage
-bun run deploy:prod      # Deploy to production stage
+cp .env.example .env
 ```
 
-**Removal behavior:**
+### Required
 
-- `dev` — all resources are deleted on `bun run remove:dev`
-- `prod` — resources are **retained** on removal (safety measure to prevent data loss)
+| Variable | Description |
+| --- | --- |
+| `AWS_PROFILE` | AWS CLI profile to use |
+| `AWS_REGION` | SES inbound region: `us-east-1`, `us-west-2`, or `eu-west-1` |
+| `SES_DOMAIN` | Domain for receiving emails (e.g. `receive.yourdomain.com`) |
 
-## DNS Setup
+### Optional
 
-This is the most important part of the deployment. SES needs two DNS records to receive emails on your domain:
+| Variable | Description |
+| --- | --- |
+| `HOSTED_ZONE_ID` | Route 53 hosted zone ID — enables automatic DNS and certificate management |
+| `API_DOMAIN` | Custom domain for the API (e.g. `api.inbox.yourdomain.com`) |
 
-1. **MX record** — tells mail servers to route emails to AWS SES
-2. **TXT record** — proves you own the domain (SES verification)
+**How they interact:**
 
-There are two ways to set this up:
+- `HOSTED_ZONE_ID` set → DNS records (MX, TXT) and ACM certificates are created and validated automatically
+- `HOSTED_ZONE_ID` omitted → you manage DNS externally; deploy outputs a `.sst/dns-records.zone` file to import
+- `API_DOMAIN` set + `HOSTED_ZONE_ID` → custom domain with automatic DNS and certificate
+- `API_DOMAIN` set without `HOSTED_ZONE_ID` → custom domain using a pre-provisioned ACM certificate (looked up by domain at deploy time)
+- `API_DOMAIN` omitted → API is served at the default Lambda Function URL
 
----
+> **Use a subdomain** (e.g. `receive.yourdomain.com`) rather than your root domain. This avoids conflicts with existing MX records for your primary email.
 
-### Option A: Automatic (Route 53 Hosted Zone)
+## Step 2: Provision ACM certificate (external DNS only)
 
-If your domain's DNS is managed by **AWS Route 53**, you can let the deployment create the records automatically.
+**Skip this step if you are using Route 53 (`HOSTED_ZONE_ID` is set).**
 
-#### 1. Find your Hosted Zone ID
+If you set `API_DOMAIN` without `HOSTED_ZONE_ID`, you need a validated ACM certificate before deploying. The domain on the certificate must match `API_DOMAIN` exactly.
 
-Go to [Route 53 → Hosted Zones](https://console.aws.amazon.com/route53/v2/hostedzones) in the AWS Console and copy the **Hosted Zone ID** for your domain.
+### 2a. Request the certificate
 
-> **Using a subdomain?** If you're using `receive.yourdomain.com`, you need the hosted zone for `yourdomain.com` (or a dedicated hosted zone for the subdomain if you have one).
+The certificate must be in the same region defined in your `.env` (`AWS_REGION`), which must be one of the three SES inbound regions:
 
-#### 2. Set it in `.env`
+- `us-east-1` (US East - N. Virginia)
+- `us-west-2` (US West - Oregon)
+- `eu-west-1` (Europe - Ireland)
 
 ```bash
-SES_DOMAIN=receive.yourdomain.com
-HOSTED_ZONE_ID=Z1234567890ABC
+aws acm request-certificate \
+  --domain-name api.inbox.yourdomain.com \
+  --validation-method DNS \
+  --region $AWS_REGION
 ```
 
-#### 3. Deploy
+Save the `CertificateArn` from the output.
+
+### 2b. Get the validation CNAME
 
 ```bash
-bun run deploy:dev
+aws acm describe-certificate \
+  --certificate-arn <arn-from-above> \
+  --query "Certificate.DomainValidationOptions[0].ResourceRecord" \
+  --region $AWS_REGION
 ```
 
-The deployment will automatically create:
-- `TXT _amazonses.receive.yourdomain.com` → SES verification token
-- `MX receive.yourdomain.com` → `10 inbound-smtp.{region}.amazonaws.com`
+Add the returned CNAME record in your DNS provider.
 
----
-
-### Option B: Manual (External DNS Provider)
-
-If your DNS is managed outside Route 53 (Cloudflare, Namecheap, GoDaddy, etc.), **omit** `HOSTED_ZONE_ID` from your `.env`:
+### 2c. Wait for the certificate to be issued
 
 ```bash
-SES_DOMAIN=receive.yourdomain.com
-# HOSTED_ZONE_ID=     ← leave this commented out
+aws acm describe-certificate \
+  --certificate-arn <arn-from-above> \
+  --query "Certificate.Status" \
+  --region $AWS_REGION
 ```
 
-#### 1. Deploy
+**Do not proceed to Step 3 until the status is `ISSUED`.** A pending certificate will cause the deploy to fail.
+
+## Step 3: Deploy
 
 ```bash
-bun run deploy:dev
+bun run deploy:dev       # dev stage
+bun run deploy:prod      # production stage
 ```
 
-The deploy output will print the DNS records you need to add:
+SST uses **stages** to isolate environments. Each stage creates its own set of resources:
 
-```
-dnsVerificationRecord: TXT _amazonses.receive.yourdomain.com <verification-token>
-dnsMxRecord: MX receive.yourdomain.com 10 inbound-smtp.us-east-1.amazonaws.com
-```
+- S3 bucket for raw `.eml` files (8-day lifecycle)
+- DynamoDB tables for email metadata (7-day TTL) and API keys
+- API Lambda (Hono HTTP handler)
+- Ingest Lambda (S3 event handler that parses emails into DynamoDB)
+- SES domain identity and receipt rules
+- CloudFront distribution + Router (only when `API_DOMAIN` is set)
+- DNS records in Route 53 (only when `HOSTED_ZONE_ID` is set)
 
-#### 2. Add the TXT record
+## Step 4: Configure DNS records (external DNS only)
 
-In your DNS provider, create a **TXT** record:
+**Skip this step if you are using Route 53 (`HOSTED_ZONE_ID` is set).**
 
-| Field | Value |
-|-------|-------|
-| **Type** | TXT |
-| **Name/Host** | `_amazonses.receive.yourdomain.com` |
-| **Value** | The verification token from the deploy output |
-| **TTL** | 300 (or default) |
+After deployment, a BIND zone file is generated at `.sst/dns-records.zone` containing all required DNS records.
 
-This proves to AWS that you own the domain. SES will periodically check this record — **do not remove it**.
+**Cloudflare:** Go to your domain → DNS → Records → Import and Export → Upload `.sst/dns-records.zone`. After importing, ensure the API CNAME record has **Proxy status** set to **DNS only** (grey cloud). Proxying through Cloudflare will cause **Error 1016** because CloudFront must terminate TLS directly for the custom domain.
 
-#### 3. Add the MX record
+**Other providers:** Open the file and add the records manually. It contains:
 
-Create an **MX** record:
+- **TXT** record on `_amazonses.<domain>` — SES domain verification (do not remove)
+- **MX** record on `<domain>` — routes inbound email to SES
+- **CNAME** record for `<api-domain>` → CloudFront distribution (only when `API_DOMAIN` is set)
 
-| Field | Value |
-|-------|-------|
-| **Type** | MX |
-| **Name/Host** | `receive.yourdomain.com` |
-| **Priority** | `10` |
-| **Value** | `inbound-smtp.{region}.amazonaws.com` |
-| **TTL** | 300 (or default) |
-
-Replace `{region}` with your AWS region (`us-east-1`, `us-west-2`, or `eu-west-1`).
-
-> **Note:** Some DNS providers require you to put the priority in a separate field, others expect it inline (e.g., `10 inbound-smtp.us-east-1.amazonaws.com`). Check your provider's docs.
-
-#### 4. Wait for DNS propagation
-
-DNS changes can take a few minutes to a few hours to propagate. You can verify the records:
+### Verify DNS propagation
 
 ```bash
-# Check MX record
 dig MX receive.yourdomain.com
-
-# Check TXT verification record
 dig TXT _amazonses.receive.yourdomain.com
 ```
 
-#### 5. Verify in SES Console
+### Verify SES
 
 Go to [SES → Verified Identities](https://console.aws.amazon.com/ses/home#/verified-identities) to confirm your domain shows as **Verified**.
 
----
+## Step 5: Verify the deployment
 
-## Domain Recommendations
+Once DNS is propagated, verify the API is reachable:
 
-- **Use a subdomain** (e.g., `receive.yourdomain.com`, `inbox.yourdomain.com`) rather than your root domain. This avoids conflicts with existing MX records for your primary email.
-- **One domain per deployment** — each ses-inbox deployment manages one receiving domain. If you need multiple domains, deploy separate stages or instances.
+```bash
+curl https://<your-api-url>/health
+```
 
-## Data Retention
+The `apiUrl` is printed in the deploy output and saved to `.sst/outputs.json`. It will be your custom domain if `API_DOMAIN` is configured, otherwise the Lambda Function URL.
+
+## Data retention
 
 - **DynamoDB entries** expire after **7 days** (automatic TTL)
 - **S3 raw emails** expire after **8 days** (lifecycle rule)
-- The 1-day buffer ensures S3 objects are cleaned up after their DynamoDB index entries expire.
+- The 1-day buffer ensures S3 objects are cleaned up after their DynamoDB index entries expire
 
 ## Teardown
 
@@ -154,7 +152,8 @@ Go to [SES → Verified Identities](https://console.aws.amazon.com/ses/home#/ver
 bun run remove:dev       # Remove dev stage (deletes all resources)
 ```
 
-> Production stage resources are retained on removal. To fully delete prod resources, you'll need to manually delete them in the AWS Console or change the removal policy in `sst.config.ts`.
+- `dev` stage — all resources are deleted on removal
+- `prod` stage — resources are **retained** on removal (safety measure to prevent data loss). To fully delete, remove resources manually in the AWS Console or change the removal policy in `sst.config.ts`
 
 ## Troubleshooting
 
@@ -177,3 +176,26 @@ bun run remove:dev       # Remove dev stage (deletes all resources)
 1. **Check your AWS region** — must be `us-east-1`, `us-west-2`, or `eu-west-1`
 2. **Check AWS credentials** — ensure your `AWS_PROFILE` has the necessary permissions
 3. **SES receipt rule conflict** — only one active receipt rule set is allowed per AWS account per region. If you have an existing rule set, you may need to deactivate it first
+
+### `reading ACM Certificates: empty result`
+
+The ACM certificate lookup failed. This means no issued certificate was found for your `API_DOMAIN`. Verify:
+
+1. The certificate domain matches `API_DOMAIN` exactly
+2. The certificate is in the same region as your deployment (`AWS_REGION`)
+3. The certificate status is **Issued**, not Pending Validation
+
+```bash
+aws acm list-certificates --region $AWS_REGION \
+  --query "CertificateSummaryList[?DomainName=='api.inbox.yourdomain.com']"
+```
+
+### Deploy hangs on deleting `ApiRouterCdnSslCertificate`
+
+This can happen when switching from Route 53 to external DNS. SST tries to delete the certificate it previously created, but CloudFront may hold onto it. If the delete hangs for more than 5 minutes, cancel the deploy and retry. If it persists, remove the router first:
+
+```bash
+bun x sst remove --stage dev --target ApiRouter
+```
+
+Then redeploy.

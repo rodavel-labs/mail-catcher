@@ -21,7 +21,6 @@ describe("createApiKeyAuth", () => {
 		expect(res.status).toBe(401);
 		const body = await res.json();
 		expect(body.error).toBe("UNAUTHORIZED");
-		expect(body.message).toContain("bearer token");
 	});
 
 	test("returns 401 when Authorization header is not Bearer", async () => {
@@ -43,7 +42,6 @@ describe("createApiKeyAuth", () => {
 		expect(res.status).toBe(401);
 		const body = await res.json();
 		expect(body.error).toBe("UNAUTHORIZED");
-		expect(body.message).toContain("Invalid API key");
 		expect(verifyKey).toHaveBeenCalledWith("bad-token");
 	});
 

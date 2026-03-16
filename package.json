@@ -1,7 +1,7 @@
 {
 	"name": "ses-inbox",
 	"license": "MIT",
-  "version": "0.1.0",
+	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
 		"provision": "bun run scripts/provision.ts",
@@ -9,7 +9,8 @@
 		"deploy:prod": "npx sst deploy --stage prod",
 		"dev": "npx sst dev --stage dev",
 		"remove:dev": "npx sst remove --stage dev",
-		"test": "bun test --preload ./test-preload.ts packages/",
+		"test": "bun test --preload ./test-preload.ts apps/ packages/",
+		"test:e2e": "bun test e2e/tests/",
 		"lint": "biome check --fix"
 	},
 	"dependencies": {
@@ -25,6 +26,8 @@
 		"typescript": "^5.7.0"
 	},
 	"workspaces": [
-		"packages/*"
+		"apps/*",
+		"packages/*",
+		"e2e"
 	]
 }

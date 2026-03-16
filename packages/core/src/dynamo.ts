@@ -1,0 +1,359 @@
+import {
+	BatchWriteCommand,
+	DeleteCommand,
+	type DynamoDBDocumentClient,
+	PutCommand,
+	QueryCommand,
+} from "@aws-sdk/lib-dynamodb";
+import { z } from "zod";
+
+const SEVEN_DAYS_SEC = 7 * 24 * 60 * 60;
+const BATCH_DELETE_SIZE = 25;
+
+export function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const AttachmentMetaSchema = z.object({
+	filename: z.string(),
+	contentType: z.string(),
+	size: z.number(),
+	s3Key: z.string(),
+	contentId: z.string().optional(),
+});
+
+export type AttachmentMeta = z.infer<typeof AttachmentMetaSchema>;
+
+const nullishString = z.union([z.string(), z.null()]).transform((v) => v ?? "");
+const nullishAttachments = z
+	.union([z.array(AttachmentMetaSchema), z.null()])
+	.transform((v) => v ?? []);
+
+const EmailItemSchema = z.object({
+	PK: z.string(),
+	messageId: z.string(),
+	sender: z.string(),
+	recipient: z.string(),
+	subject: z.string(),
+	body: nullishString.optional().default(""),
+	htmlBody: nullishString.optional().default(""),
+	attachments: nullishAttachments.optional().default([]),
+	s3Key: z.string(),
+	receivedAt: z.number(),
+});
+
+const RawEmailRecordSchema = EmailItemSchema.extend({
+	SK: z.string(),
+});
+
+const EmailKeyProjectionSchema = RawEmailRecordSchema.pick({
+	PK: true,
+	SK: true,
+	s3Key: true,
+	attachments: true,
+});
+
+const EmailItemOutputSchema = EmailItemSchema.transform((item) => ({
+	inbox: item.PK,
+	messageId: item.messageId,
+	sender: item.sender,
+	recipient: item.recipient,
+	subject: item.subject,
+	body: item.body,
+	htmlBody: item.htmlBody,
+	attachments: item.attachments,
+	s3Key: item.s3Key,
+	receivedAt: item.receivedAt,
+}));
+
+export type EmailItem = z.output<typeof EmailItemOutputSchema>;
+
+const RawEmailRecordOutputSchema = RawEmailRecordSchema.transform((item) => ({
+	PK: item.PK,
+	SK: item.SK,
+	inbox: item.PK,
+	messageId: item.messageId,
+	sender: item.sender,
+	recipient: item.recipient,
+	subject: item.subject,
+	body: item.body,
+	htmlBody: item.htmlBody,
+	attachments: item.attachments,
+	s3Key: item.s3Key,
+	receivedAt: item.receivedAt,
+}));
+
+export type RawEmailRecord = z.output<typeof RawEmailRecordOutputSchema>;
+
+export interface EmailFilters {
+	sender?: string;
+	subject?: string;
+	receivedAfter?: number;
+	receivedBefore?: number;
+	hasAttachments?: boolean;
+}
+
+export interface QueryEmailsOpts {
+	inbox: string;
+	cursor?: string;
+	limit?: number;
+	filters?: EmailFilters;
+}
+
+/** @returns TTL in unix epoch seconds, 7 days from now */
+export function ttl(): number {
+	return Math.floor(Date.now() / 1000) + SEVEN_DAYS_SEC;
+}
+
+/** @returns Sort key combining ISO timestamp and messageId */
+export function buildSortKey(receivedAt: number, messageId: string): string {
+	return `${new Date(receivedAt).toISOString()}#${messageId}`;
+}
+
+/** Maps a raw DynamoDB item to an {@link EmailItem} */
+export function mapEmailItem(item: Record<string, unknown>): EmailItem {
+	return EmailItemOutputSchema.parse(item);
+}
+
+export function buildFilterExpression(filters: EmailFilters) {
+	const conditions: string[] = [];
+	const values: Record<string, unknown> = {};
+	const names: Record<string, string> = {};
+
+	if (filters.sender !== undefined) {
+		conditions.push("contains(#sender, :sender)");
+		names["#sender"] = "sender";
+		values[":sender"] = filters.sender;
+	}
+
+	if (filters.subject !== undefined) {
+		conditions.push("contains(#subject, :subj)");
+		names["#subject"] = "subject";
+		values[":subj"] = filters.subject;
+	}
+
+	if (filters.receivedAfter !== undefined) {
+		conditions.push("receivedAt >= :rAfter");
+		values[":rAfter"] = filters.receivedAfter;
+	}
+
+	if (filters.receivedBefore !== undefined) {
+		conditions.push("receivedAt <= :rBefore");
+		values[":rBefore"] = filters.receivedBefore;
+	}
+
+	if (filters.hasAttachments === true) {
+		conditions.push("size(attachments) > :zero");
+		values[":zero"] = 0;
+	} else if (filters.hasAttachments === false) {
+		conditions.push("size(attachments) = :zero");
+		values[":zero"] = 0;
+	}
+
+	if (conditions.length === 0) return undefined;
+
+	return {
+		FilterExpression: conditions.join(" AND "),
+		ExpressionAttributeValues: values,
+		ExpressionAttributeNames: Object.keys(names).length > 0 ? names : undefined,
+	};
+}
+
+export interface EmailRepository {
+	putEmail(item: EmailItem): Promise<void>;
+	queryEmails(opts: QueryEmailsOpts): Promise<{
+		emails: EmailItem[];
+		nextCursor: string | undefined;
+		hasMore: boolean;
+	}>;
+	getEmailByMessageId(messageId: string): Promise<EmailItem | null>;
+	getEmailRawByMessageId(messageId: string): Promise<RawEmailRecord | null>;
+	deleteEmail(pk: string, sk: string): Promise<void>;
+	queryAllEmailKeys(inbox: string): Promise<
+		Array<{
+			PK: string;
+			SK: string;
+			s3Key: string;
+			attachments: AttachmentMeta[];
+		}>
+	>;
+	batchDeleteEmails(keys: Array<{ PK: string; SK: string }>): Promise<void>;
+}
+
+export function createEmailRepository(
+	client: DynamoDBDocumentClient,
+	tableName: string,
+): EmailRepository {
+	return {
+		async putEmail(item: EmailItem) {
+			const sk = buildSortKey(item.receivedAt, item.messageId);
+
+			await client.send(
+				new PutCommand({
+					TableName: tableName,
+					Item: {
+						PK: item.inbox,
+						SK: sk,
+						messageId: item.messageId,
+						sender: item.sender,
+						recipient: item.recipient,
+						subject: item.subject,
+						body: item.body,
+						htmlBody: item.htmlBody,
+						attachments: item.attachments,
+						s3Key: item.s3Key,
+						receivedAt: item.receivedAt,
+						ttl: ttl(),
+					},
+				}),
+			);
+		},
+
+		async queryEmails({ inbox, cursor, limit = 50, filters }: QueryEmailsOpts) {
+			const filter = filters ? buildFilterExpression(filters) : undefined;
+			const collected: Record<string, unknown>[] = [];
+			let exclusiveStartKey: Record<string, unknown> | undefined;
+			let isFirstPage = true;
+
+			do {
+				const useCursor = isFirstPage && cursor != null;
+				const keyCondition = useCursor ? "PK = :pk AND SK < :sk" : "PK = :pk";
+				const keyValues: Record<string, unknown> = useCursor
+					? { ":pk": inbox, ":sk": cursor }
+					: { ":pk": inbox };
+
+				const result = await client.send(
+					new QueryCommand({
+						TableName: tableName,
+						KeyConditionExpression: keyCondition,
+						ExpressionAttributeValues: {
+							...keyValues,
+							...filter?.ExpressionAttributeValues,
+						},
+						ExpressionAttributeNames: filter?.ExpressionAttributeNames,
+						FilterExpression: filter?.FilterExpression,
+						ScanIndexForward: false,
+						Limit: limit - collected.length,
+						ExclusiveStartKey: isFirstPage ? undefined : exclusiveStartKey,
+					}),
+				);
+
+				isFirstPage = false;
+				collected.push(...(result.Items ?? []));
+				exclusiveStartKey = result.LastEvaluatedKey;
+			} while (filter && collected.length < limit && exclusiveStartKey);
+
+			const nextCursor = exclusiveStartKey?.SK;
+			return {
+				emails: collected.map(mapEmailItem),
+				nextCursor: typeof nextCursor === "string" ? nextCursor : undefined,
+				hasMore: exclusiveStartKey !== undefined,
+			};
+		},
+
+		async getEmailByMessageId(messageId: string): Promise<EmailItem | null> {
+			const result = await client.send(
+				new QueryCommand({
+					TableName: tableName,
+					IndexName: "MessageIdIndex",
+					KeyConditionExpression: "messageId = :mid",
+					ExpressionAttributeValues: { ":mid": messageId },
+					Limit: 1,
+				}),
+			);
+
+			const item = result.Items?.[0];
+			if (!item) return null;
+
+			return mapEmailItem(item);
+		},
+
+		async getEmailRawByMessageId(
+			messageId: string,
+		): Promise<RawEmailRecord | null> {
+			const result = await client.send(
+				new QueryCommand({
+					TableName: tableName,
+					IndexName: "MessageIdIndex",
+					KeyConditionExpression: "messageId = :mid",
+					ExpressionAttributeValues: { ":mid": messageId },
+					Limit: 1,
+				}),
+			);
+
+			const item = result.Items?.[0];
+			if (!item) return null;
+
+			return RawEmailRecordOutputSchema.parse(item);
+		},
+
+		async deleteEmail(pk: string, sk: string): Promise<void> {
+			await client.send(
+				new DeleteCommand({
+					TableName: tableName,
+					Key: { PK: pk, SK: sk },
+				}),
+			);
+		},
+
+		async queryAllEmailKeys(inbox: string) {
+			const items: Array<{
+				PK: string;
+				SK: string;
+				s3Key: string;
+				attachments: AttachmentMeta[];
+			}> = [];
+			let lastKey: Record<string, unknown> | undefined;
+
+			do {
+				const result = await client.send(
+					new QueryCommand({
+						TableName: tableName,
+						KeyConditionExpression: "PK = :pk",
+						ExpressionAttributeValues: { ":pk": inbox },
+						ProjectionExpression: "PK, SK, s3Key, attachments",
+						ExclusiveStartKey: lastKey,
+					}),
+				);
+
+				for (const item of result.Items ?? []) {
+					items.push(EmailKeyProjectionSchema.parse(item));
+				}
+
+				lastKey = result.LastEvaluatedKey;
+			} while (lastKey);
+
+			return items;
+		},
+
+		async batchDeleteEmails(
+			keys: Array<{ PK: string; SK: string }>,
+		): Promise<void> {
+			for (let i = 0; i < keys.length; i += BATCH_DELETE_SIZE) {
+				const batch = keys.slice(i, i + BATCH_DELETE_SIZE);
+				let requestItems: NonNullable<
+					BatchWriteCommand["input"]["RequestItems"]
+				> = {
+					[tableName]: batch.map((key) => ({
+						DeleteRequest: { Key: { PK: key.PK, SK: key.SK } },
+					})),
+				};
+
+				let delay = 100;
+				while (Object.keys(requestItems).length > 0) {
+					const result = await client.send(
+						new BatchWriteCommand({ RequestItems: requestItems }),
+					);
+					const unprocessed = result.UnprocessedItems;
+					if (unprocessed && Object.keys(unprocessed).length > 0) {
+						requestItems = unprocessed;
+						await sleep(delay);
+						delay = Math.min(delay * 2, 5000);
+					} else {
+						break;
+					}
+				}
+			}
+		},
+	};
+}

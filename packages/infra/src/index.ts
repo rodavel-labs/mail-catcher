@@ -1,19 +1,25 @@
 /// <reference path="../../../.sst/platform/config.d.ts" />
 
+import { env } from "./env";
 import { createSesInbound } from "./ses-inbound";
+import { buildOutputs } from "./utils/output";
+import { createApiRouter } from "./utils/router";
 
 export function createInfra() {
-	const domain = process.env.SES_DOMAIN;
-	const hostedZoneId = process.env.HOSTED_ZONE_ID;
-
-	if (!domain) {
-		throw new Error("SES_DOMAIN must be set in .env");
-	}
+	const {
+		SES_DOMAIN: domain,
+		HOSTED_ZONE_ID: hostedZoneId,
+		API_DOMAIN: apiDomain,
+	} = env;
 
 	const emailBucket = new sst.aws.Bucket("EmailBucket", {
 		lifecycle: [
 			{
 				prefix: "incoming/",
+				expiresIn: "8 days",
+			},
+			{
+				prefix: "attachments/",
 				expiresIn: "8 days",
 			},
 		],
@@ -57,18 +63,22 @@ export function createInfra() {
 	});
 
 	const api = new sst.aws.Function("Api", {
-		handler: "packages/api/src/index.handler",
+		handler: "apps/api/src/index.handler",
 		url: true,
 		timeout: "30 seconds",
 		link: [emailsTable, emailBucket, apiKeysTable],
 	});
+
+	const router = apiDomain
+		? createApiRouter(api, apiDomain, hostedZoneId)
+		: undefined;
 
 	emailBucket.notify({
 		notifications: [
 			{
 				name: "IngestFn",
 				function: {
-					handler: "packages/api/src/ingest.handler",
+					handler: "apps/ingest/src/ingest.handler",
 					timeout: "30 seconds",
 					link: [emailsTable, emailBucket],
 					environment: {
@@ -87,14 +97,15 @@ export function createInfra() {
 		bucketArn: emailBucket.arn,
 	});
 
-	return {
-		apiUrl: api.url,
-		bucketName: emailBucket.name,
-		emailsTableName: emailsTable.name,
-		apiKeysTableName: apiKeysTable.name,
-		...(!hostedZoneId && {
-			dnsVerificationRecord: $interpolate`TXT _amazonses.${domain} ${ses.verificationToken}`,
-			dnsMxRecord: $interpolate`MX ${domain} ${ses.mxRecord}`,
-		}),
-	};
+	return buildOutputs({
+		api,
+		router,
+		apiDomain,
+		emailBucket,
+		emailsTable,
+		apiKeysTable,
+		ses,
+		domain,
+		hostedZoneId,
+	});
 }

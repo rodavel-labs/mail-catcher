@@ -1,0 +1,20 @@
+From: dave@example.com
+To: inbox@receive.example.com
+Subject: Email with attachment
+Message-ID: <attach-001@example.com>
+Date: Mon, 10 Mar 2025 12:03:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_boundary_mix"
+
+------=_boundary_mix
+Content-Type: text/plain; charset=utf-8
+
+See attached document.
+------=_boundary_mix
+Content-Type: application/pdf; name="report.pdf"
+Content-Disposition: attachment; filename="report.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5k
+b2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4K
+------=_boundary_mix--

@@ -1,0 +1,14 @@
+From: bob@example.com
+To: inbox@receive.example.com
+Subject: HTML only email
+Message-ID: <html-001@example.com>
+Date: Mon, 10 Mar 2025 12:01:00 +0000
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html>
+<body>
+<h1>Hello</h1>
+<p>This is an <strong>HTML only</strong> email.</p>
+</body>
+</html>

@@ -1,0 +1,17 @@
+From: charlie@example.com
+To: inbox@receive.example.com
+Subject: Multipart email
+Message-ID: <multi-001@example.com>
+Date: Mon, 10 Mar 2025 12:02:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="----=_boundary_alt"
+
+------=_boundary_alt
+Content-Type: text/plain; charset=utf-8
+
+This is the plain text part.
+------=_boundary_alt
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>This is the <em>HTML</em> part.</p></body></html>
+------=_boundary_alt--
