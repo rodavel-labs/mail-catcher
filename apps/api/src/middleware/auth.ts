@@ -1,8 +1,5 @@
 import { createHash } from "node:crypto";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { createMiddleware } from "hono/factory";
-import { Resource } from "sst";
 
 export function hashKey(plaintext: string): string {
 	return createHash("sha256").update(plaintext).digest("hex");
@@ -30,20 +27,3 @@ export function createApiKeyAuth(verifyKey: VerifyKey) {
 		await next();
 	});
 }
-
-function createDynamoVerifyKey(): VerifyKey {
-	const client = DynamoDBDocumentClient.from(new DynamoDBClient());
-
-	return async (token: string) => {
-		const keyHash = hashKey(token);
-		const result = await client.send(
-			new GetCommand({
-				TableName: Resource.ApiKeysTable.name,
-				Key: { keyHash },
-			}),
-		);
-		return !!result.Item;
-	};
-}
-
-export const apiKeyAuth = createApiKeyAuth(createDynamoVerifyKey());

@@ -40,6 +40,8 @@ export const AttachmentSchema = z.object({
 	contentId: z.string().optional(),
 });
 
+export type AttachmentResponse = z.infer<typeof AttachmentSchema>;
+
 export const EmailSchema = z.object({
 	messageId: z.string(),
 	inbox: z.string(),
@@ -53,11 +55,15 @@ export const EmailSchema = z.object({
 	rawUrl: z.string(),
 });
 
+export type EmailResponse = z.infer<typeof EmailSchema>;
+
 export const EmailListSchema = z.object({
 	emails: z.array(EmailSchema),
 	nextCursor: z.string().optional(),
 	hasMore: z.boolean(),
 });
+
+export type EmailListResponse = z.infer<typeof EmailListSchema>;
 
 export const ErrorSchema = z.object({
 	error: z.string(),
@@ -68,6 +74,10 @@ export const DeleteSingleSchema = z.object({
 	messageId: z.string(),
 });
 
+export type DeleteSingleResponse = z.infer<typeof DeleteSingleSchema>;
+
 export const DeleteBulkSchema = z.object({
 	deleted: z.number().int(),
 });
+
+export type DeleteBulkResponse = z.infer<typeof DeleteBulkSchema>;

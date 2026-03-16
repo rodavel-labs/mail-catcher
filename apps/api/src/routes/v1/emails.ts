@@ -1,4 +1,4 @@
-import type { EmailFilters } from "@ses-inbox/core";
+import { type EmailFilters, sleep } from "@ses-inbox/core";
 import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 import { formatEmailResponse, formatEmailsResponse } from "../../lib/format";
@@ -21,10 +21,6 @@ import {
 
 const security = [{ BearerAuth: [] }];
 const errSchema = { schema: resolver(ErrorSchema) };
-
-function sleep(ms: number) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function parseTimestamp(value: string): number | null {
 	const asNum = Number(value);
@@ -87,8 +83,14 @@ export function createEmailRoutes(deps: AppDeps) {
 							"application/json": { schema: resolver(EmailListSchema) },
 						},
 					},
-					400: { description: "Bad request", content: { "application/json": errSchema } },
-					401: { description: "Unauthorized", content: { "application/json": errSchema } },
+					400: {
+						description: "Bad request",
+						content: { "application/json": errSchema },
+					},
+					401: {
+						description: "Unauthorized",
+						content: { "application/json": errSchema },
+					},
 				},
 			}),
 			validator("query", ListEmailsQuery, inboxValidationHook),
@@ -139,8 +141,14 @@ export function createEmailRoutes(deps: AppDeps) {
 							"application/json": { schema: resolver(EmailSchema) },
 						},
 					},
-					401: { description: "Unauthorized", content: { "application/json": errSchema } },
-					404: { description: "Not found", content: { "application/json": errSchema } },
+					401: {
+						description: "Unauthorized",
+						content: { "application/json": errSchema },
+					},
+					404: {
+						description: "Not found",
+						content: { "application/json": errSchema },
+					},
 				},
 			}),
 			validator("param", MessageIdParam),
@@ -168,8 +176,14 @@ export function createEmailRoutes(deps: AppDeps) {
 							"application/json": { schema: resolver(DeleteSingleSchema) },
 						},
 					},
-					401: { description: "Unauthorized", content: { "application/json": errSchema } },
-					404: { description: "Not found", content: { "application/json": errSchema } },
+					401: {
+						description: "Unauthorized",
+						content: { "application/json": errSchema },
+					},
+					404: {
+						description: "Not found",
+						content: { "application/json": errSchema },
+					},
 				},
 			}),
 			validator("param", MessageIdParam),
@@ -181,10 +195,7 @@ export function createEmailRoutes(deps: AppDeps) {
 					return c.json({ error: "NOT_FOUND" }, 404);
 				}
 
-				const s3Keys = [
-					email.s3Key,
-					...email.attachments.map((a) => a.s3Key),
-				];
+				const s3Keys = [email.s3Key, ...email.attachments.map((a) => a.s3Key)];
 
 				await Promise.all([
 					deps.deleteEmail(email.PK, email.SK),
@@ -207,8 +218,14 @@ export function createEmailRoutes(deps: AppDeps) {
 							"application/json": { schema: resolver(DeleteBulkSchema) },
 						},
 					},
-					400: { description: "Bad request", content: { "application/json": errSchema } },
-					401: { description: "Unauthorized", content: { "application/json": errSchema } },
+					400: {
+						description: "Bad request",
+						content: { "application/json": errSchema },
+					},
+					401: {
+						description: "Unauthorized",
+						content: { "application/json": errSchema },
+					},
 				},
 			}),
 			validator("query", BulkDeleteQuery, bulkDeleteValidationHook),
@@ -243,8 +260,14 @@ export function createEmailRoutes(deps: AppDeps) {
 				security,
 				responses: {
 					302: { description: "Redirect to pre-signed S3 URL" },
-					401: { description: "Unauthorized", content: { "application/json": errSchema } },
-					404: { description: "Not found", content: { "application/json": errSchema } },
+					401: {
+						description: "Unauthorized",
+						content: { "application/json": errSchema },
+					},
+					404: {
+						description: "Not found",
+						content: { "application/json": errSchema },
+					},
 				},
 			}),
 			validator("param", MessageIdParam),
@@ -270,8 +293,14 @@ export function createEmailRoutes(deps: AppDeps) {
 				security,
 				responses: {
 					302: { description: "Redirect to pre-signed S3 URL" },
-					401: { description: "Unauthorized", content: { "application/json": errSchema } },
-					404: { description: "Not found", content: { "application/json": errSchema } },
+					401: {
+						description: "Unauthorized",
+						content: { "application/json": errSchema },
+					},
+					404: {
+						description: "Not found",
+						content: { "application/json": errSchema },
+					},
 				},
 			}),
 			validator("param", AttachmentParam),
