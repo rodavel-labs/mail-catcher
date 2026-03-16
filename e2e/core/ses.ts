@@ -43,7 +43,9 @@ function buildMimeMessage(opts: {
 
 		for (const att of opts.attachments) {
 			lines.push(`--${boundary}`);
-			lines.push(`Content-Type: ${att.contentType ?? "application/octet-stream"}; name="${att.filename}"`);
+			lines.push(
+				`Content-Type: ${att.contentType ?? "application/octet-stream"}; name="${att.filename}"`,
+			);
 			lines.push("Content-Transfer-Encoding: base64");
 			lines.push(`Content-Disposition: attachment; filename="${att.filename}"`);
 			lines.push("");

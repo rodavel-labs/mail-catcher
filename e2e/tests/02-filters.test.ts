@@ -8,8 +8,16 @@ const INBOX = `e2e-filter-${Date.now()}`;
 describe("query filters", () => {
 	beforeAll(async () => {
 		await Promise.all([
-			sendEmail({ inbox: INBOX, subject: "Invoice #123", from: `Billing <billing@${SES_DOMAIN}>` }),
-			sendEmail({ inbox: INBOX, subject: "Welcome aboard", from: `Support <support@${SES_DOMAIN}>` }),
+			sendEmail({
+				inbox: INBOX,
+				subject: "Invoice #123",
+				from: `Billing <billing@${SES_DOMAIN}>`,
+			}),
+			sendEmail({
+				inbox: INBOX,
+				subject: "Welcome aboard",
+				from: `Support <support@${SES_DOMAIN}>`,
+			}),
 		]);
 
 		const data = await getEmailsWithWait(INBOX, { limit: "2" });
@@ -40,10 +48,16 @@ describe("query filters", () => {
 	});
 
 	test("combined filters narrow results", async () => {
-		const data = await getEmails(INBOX, { subject: "Invoice", sender: "Billing" });
+		const data = await getEmails(INBOX, {
+			subject: "Invoice",
+			sender: "Billing",
+		});
 		expect(data.emails.length).toBe(1);
 
-		const noMatch = await getEmails(INBOX, { subject: "Invoice", sender: "Support" });
+		const noMatch = await getEmails(INBOX, {
+			subject: "Invoice",
+			sender: "Support",
+		});
 		expect(noMatch.emails.length).toBe(0);
 	});
 
@@ -52,7 +66,10 @@ describe("query filters", () => {
 		expect(page1.emails.length).toBe(1);
 
 		if (page1.hasMore && page1.nextCursor) {
-			const page2 = await getEmails(INBOX, { limit: "1", cursor: page1.nextCursor });
+			const page2 = await getEmails(INBOX, {
+				limit: "1",
+				cursor: page1.nextCursor,
+			});
 			expect(page2.emails.length).toBe(1);
 			expect(page2.emails[0].messageId).not.toBe(page1.emails[0].messageId);
 		}
