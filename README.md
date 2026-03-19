@@ -1,6 +1,6 @@
-# ses-inbox
+# mail-catcher
 
-[![CI](https://github.com/RodPaDev/ses-inbox/actions/workflows/ci.yml/badge.svg)](https://github.com/RodPaDev/ses-inbox/actions/workflows/ci.yml)
+[![CI](https://github.com/RodPaDev/mail-catcher/actions/workflows/ci.yml/badge.svg)](https://github.com/RodPaDev/mail-catcher/actions/workflows/ci.yml)
 
 Serverless inbound email API. Receives emails via AWS SES, stores raw `.eml` files in S3, indexes metadata in DynamoDB, and exposes a REST API to query and retrieve them.
 
@@ -23,8 +23,8 @@ flowchart LR
 ## Quick Start
 
 ```bash
-git clone <your-repo-url> ses-inbox
-cd ses-inbox
+git clone <your-repo-url> mail-catcher
+cd mail-catcher
 bun install
 cp .env.example .env     # Configure AWS_REGION, SES_DOMAIN, etc.
 bun run deploy:dev       # Deploy to AWS
@@ -40,9 +40,7 @@ curl -H "Authorization: Bearer <token>" \
 
 ## Documentation
 
-- **[Getting Started](./docs/getting-started.md)** — philosophy, setup, project structure
-- **[Deployment Guide](./docs/deployment.md)** — DNS setup, hosted zones, MX verification, troubleshooting
-- **[API Reference](./docs/api-reference.md)** — endpoints, authentication, request/response examples
+Full documentation is available at [rodavel.com/docs/mail-catcher](https://rodavel.com/docs/mail-catcher).
 
 ## Scripts
 

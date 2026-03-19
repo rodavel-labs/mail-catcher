@@ -3,7 +3,7 @@ import type {
 	EmailFilters,
 	EmailItem,
 	RawEmailRecord,
-} from "@ses-inbox/core";
+} from "@rodavel/mail-catcher-core";
 import type { VerifyKey } from "./middleware/auth";
 
 export interface EmailQueryResult {

@@ -13,7 +13,7 @@ import {
 	getEmailRawByMessageId,
 	queryAllEmailKeys,
 	queryEmails,
-} from "@ses-inbox/core";
+} from "@rodavel/mail-catcher-core";
 import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";
 import { openAPIRouteHandler } from "hono-openapi";
@@ -48,7 +48,7 @@ export function createApp(deps: AppDeps) {
 			openAPIRouteHandler(app, {
 				documentation: {
 					info: {
-						title: "ses-inbox",
+						title: "mail-catcher",
 						version: deps.version,
 						description: "Serverless email receiving API powered by AWS SES",
 					},
