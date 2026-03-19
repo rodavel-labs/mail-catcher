@@ -1,4 +1,4 @@
-import type { EmailItem } from "@ses-inbox/core";
+import type { EmailItem } from "@rodavel/mail-catcher-core";
 import type { EmailQueryResult } from "../types";
 import { CURRENT_API_PREFIX } from "./versioning";
 

@@ -1,5 +1,5 @@
 {
-	"name": "@ses-inbox/infra",
+	"name": "@rodavel/mail-catcher-infra",
 	"private": true,
 	"type": "module",
 	"exports": {

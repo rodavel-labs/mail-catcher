@@ -1,5 +1,5 @@
 {
-	"name": "@ses-inbox/core",
+	"name": "@rodavel/mail-catcher-core",
 	"private": true,
 	"type": "module",
 	"exports": {

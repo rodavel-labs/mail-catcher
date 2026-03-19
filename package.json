@@ -1,8 +1,20 @@
 {
-	"name": "ses-inbox",
-	"license": "MIT",
+	"name": "@rodavel/mail-catcher",
 	"version": "0.1.0",
+	"description": "Serverless email catch-all service built on AWS SES, S3, and DynamoDB",
 	"type": "module",
+	"license": "MIT",
+	"keywords": [
+		"ses",
+		"email",
+		"catch-all",
+		"aws",
+		"serverless",
+		"sst"
+	],
+	"engines": {
+		"node": ">=18"
+	},
 	"scripts": {
 		"provision": "bun run scripts/provision.ts",
 		"deploy:dev": "npx sst deploy --stage dev",
@@ -14,7 +26,7 @@
 		"lint": "biome check --fix"
 	},
 	"dependencies": {
-		"@ses-inbox/infra": "workspace:*"
+		"@rodavel/mail-catcher-infra": "workspace:*"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-dynamodb": "^3.1007.0",
@@ -25,6 +37,14 @@
 		"sst": "^4.2.0",
 		"typescript": "^5.7.0"
 	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/RodPaDev/mail-catcher.git"
+	},
+	"bugs": {
+		"url": "https://github.com/RodPaDev/mail-catcher/issues"
+	},
+	"homepage": "https://github.com/RodPaDev/mail-catcher#readme",
 	"workspaces": [
 		"apps/*",
 		"packages/*",

@@ -12,7 +12,7 @@ if (!SES_INBOUND_REGIONS.includes(region)) {
 export default $config({
 	app(input) {
 		return {
-			name: "ses-inbox",
+			name: "mail-catcher",
 			home: "aws",
 			providers: {
 				aws: {
@@ -27,7 +27,7 @@ export default $config({
 		$transform(sst.aws.Function, (args) => {
 			args.runtime ??= "nodejs24.x";
 		});
-		const { createInfra } = await import("@ses-inbox/infra");
+		const { createInfra } = await import("@rodavel/mail-catcher-infra");
 		return createInfra();
 	},
 });

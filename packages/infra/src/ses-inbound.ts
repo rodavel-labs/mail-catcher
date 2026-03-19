@@ -45,7 +45,7 @@ export function createSesInbound({
 	}
 
 	const ruleSet = new aws.ses.ReceiptRuleSet("InboundRuleSet", {
-		ruleSetName: "ses-inbox-inbound",
+		ruleSetName: "mail-catcher-inbound",
 	});
 
 	new aws.ses.ActiveReceiptRuleSet("ActiveRuleSet", {

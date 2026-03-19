@@ -3,8 +3,8 @@ import {
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
-import type { AttachmentMeta, EmailItem } from "@ses-inbox/core";
-import { putEmail } from "@ses-inbox/core";
+import type { AttachmentMeta, EmailItem } from "@rodavel/mail-catcher-core";
+import { putEmail } from "@rodavel/mail-catcher-core";
 import type { S3Event } from "aws-lambda";
 import type { AddressObject } from "mailparser";
 import { simpleParser } from "mailparser";

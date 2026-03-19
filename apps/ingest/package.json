@@ -1,10 +1,10 @@
 {
-	"name": "@ses-inbox/ingest",
+	"name": "@rodavel/mail-catcher-ingest",
 	"private": true,
 	"type": "module",
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.700.0",
-		"@ses-inbox/core": "workspace:*",
+		"@rodavel/mail-catcher-core": "workspace:*",
 		"mailparser": "^3.9.4",
 		"sst": "^4.2.0"
 	},
