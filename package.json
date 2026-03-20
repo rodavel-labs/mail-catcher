@@ -1,6 +1,6 @@
 {
 	"name": "@rodavel/mail-catcher",
-	"version": "1.0.0",
+	"version": "0.2.0",
 	"description": "Serverless email catch-all service built on AWS SES, S3, and DynamoDB",
 	"type": "module",
 	"license": "MIT",
