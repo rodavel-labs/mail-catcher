@@ -41,6 +41,7 @@ jobs:
     name: Test E2E
     runs-on: ubuntu-latest
     env:
+      ## if API_DOMAIN IS set then API_URL is not required.
       API_URL: ${{ secrets.API_URL }}
       API_DOMAIN: ${{ secrets.API_DOMAIN }}
       API_TOKEN: ${{ secrets.API_TOKEN }}
