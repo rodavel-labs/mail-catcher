@@ -1,15 +1,15 @@
 import type { Context } from "hono";
 
-type Issue = {
+interface Issue {
 	message: string;
-	path?: ReadonlyArray<PropertyKey>;
+	path?: ReadonlyArray<PropertyKey | { key: PropertyKey }>;
 	code?: string;
-};
+}
 
-type ValidationResult = {
+interface ValidationResult {
 	success: boolean;
 	error?: ReadonlyArray<Issue>;
-};
+}
 
 function firstField(result: ValidationResult): string {
 	const path = result.error?.[0]?.path;
@@ -34,10 +34,7 @@ export function inboxValidationHook(result: ValidationResult, c: Context) {
 	return c.json({ error: "VALIDATION_ERROR" }, 400);
 }
 
-export function bulkDeleteValidationHook(
-	result: ValidationResult,
-	c: Context,
-) {
+export function bulkDeleteValidationHook(result: ValidationResult, c: Context) {
 	if (result.success) return;
 
 	const code = isMissing(result) ? "MISSING_INBOX" : "INVALID_INBOX";

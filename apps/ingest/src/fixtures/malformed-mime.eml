@@ -1,0 +1,16 @@
+From: mallory@example.com
+To: inbox@receive.example.com
+Subject: Malformed MIME
+Message-ID: <malformed-001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_broken"
+
+------=_broken
+Content-Type: text/plain; charset=utf-8
+
+Text before broken boundary.
+------=_wrong_boundary
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename="ghost.bin"
+
+This part uses a wrong boundary marker so it should not parse as a separate attachment.

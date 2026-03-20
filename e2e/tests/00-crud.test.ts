@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { deleteEmail, getEmail, getEmailsWithWait, deleteInbox } from "../core/api";
+import {
+	deleteEmail,
+	deleteInbox,
+	getEmail,
+	getEmailsWithWait,
+} from "../core/api";
 import { sendEmail } from "../core/ses";
 
 const INBOX = `e2e-crud-${Date.now()}`;
@@ -19,8 +24,8 @@ describe("email crud", () => {
 		const data = await getEmailsWithWait(INBOX);
 
 		expect(data.emails.length).toBeGreaterThanOrEqual(1);
-		const email = data.emails.find((e: { subject: string }) => e.subject === "E2E test email");
-		expect(email).toBeDefined();
+		const email = data.emails.find((e) => e.subject === "E2E test email");
+		if (!email) throw new Error("Expected email not found");
 		expect(email.inbox).toBe(INBOX);
 		sentMessageId = email.messageId;
 	}, 30_000);

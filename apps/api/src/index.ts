@@ -6,18 +6,11 @@ import {
 } from "@aws-sdk/client-s3";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import {
-	batchDeleteEmails,
-	deleteEmail,
-	getEmailByMessageId,
-	getEmailRawByMessageId,
-	queryAllEmailKeys,
-	queryEmails,
-} from "@rodavel/mail-catcher-core";
 import { Scalar } from "@scalar/hono-api-reference";
+import { createEmailRepository } from "@rodavel/mail-catcher-core";
 import { Hono } from "hono";
-import { openAPIRouteHandler } from "hono-openapi";
 import { handle } from "hono/aws-lambda";
+import { openAPIRouteHandler } from "hono-openapi";
 import { Resource } from "sst";
 import { CURRENT_API_VERSION } from "./lib/versioning";
 import { hashKey } from "./middleware/auth";
@@ -27,6 +20,13 @@ import type { AppDeps } from "./types";
 export { formatEmailsResponse } from "./lib/format";
 export type { ApiPrefix, ApiVersion } from "./lib/versioning";
 export { CURRENT_API_PREFIX, CURRENT_API_VERSION } from "./lib/versioning";
+export type {
+	AttachmentResponse,
+	DeleteBulkResponse,
+	DeleteSingleResponse,
+	EmailListResponse,
+	EmailResponse,
+} from "./schemas";
 export type { AppDeps, EmailQueryResult } from "./types";
 
 export function createApp(deps: AppDeps) {
@@ -76,8 +76,8 @@ export type AppType = ReturnType<typeof createApp>;
 const s3 = new S3Client();
 const ddbClient = DynamoDBDocumentClient.from(new DynamoDBClient());
 
-const signUrl = (s3Key: string) =>
-	getSignedUrl(
+function getSignedObjectUrl(s3Key: string) {
+	return getSignedUrl(
 		s3,
 		new GetObjectCommand({
 			Bucket: Resource.EmailBucket.name,
@@ -85,10 +85,11 @@ const signUrl = (s3Key: string) =>
 		}),
 		{ expiresIn: 900 },
 	);
+}
 
 const S3_DELETE_BATCH_SIZE = 1000;
 
-const deleteS3Objects = async (keys: string[]) => {
+async function deleteS3Objects(keys: string[]) {
 	for (let i = 0; i < keys.length; i += S3_DELETE_BATCH_SIZE) {
 		const batch = keys.slice(i, i + S3_DELETE_BATCH_SIZE);
 		await s3.send(
@@ -98,28 +99,40 @@ const deleteS3Objects = async (keys: string[]) => {
 			}),
 		);
 	}
-};
+}
 
-const app = createApp({
-	queryEmails,
-	getEmailByMessageId,
-	getEmailRawByMessageId,
-	deleteEmail,
-	queryAllEmailKeys,
-	batchDeleteEmails,
-	deleteS3Objects,
-	getSignedRawUrl: signUrl,
-	getSignedAttachmentUrl: signUrl,
-	verifyKey: async (token) => {
-		const result = await ddbClient.send(
-			new GetCommand({
-				TableName: Resource.ApiKeysTable.name,
-				Key: { keyHash: hashKey(token) },
-			}),
+let _handler: ReturnType<typeof handle>;
+
+export const handler: typeof _handler = (event, ...rest) => {
+	_handler ??= (() => {
+		const emailRepo = createEmailRepository(
+			ddbClient,
+			Resource.EmailsTable.name,
 		);
-		return !!result.Item;
-	},
-	version: "0.1.0",
-});
 
-export const handler = handle(app);
+		const app = createApp({
+			queryEmails: emailRepo.queryEmails,
+			getEmailByMessageId: emailRepo.getEmailByMessageId,
+			getEmailRawByMessageId: emailRepo.getEmailRawByMessageId,
+			deleteEmail: emailRepo.deleteEmail,
+			queryAllEmailKeys: emailRepo.queryAllEmailKeys,
+			batchDeleteEmails: emailRepo.batchDeleteEmails,
+			deleteS3Objects,
+			getSignedRawUrl: getSignedObjectUrl,
+			getSignedAttachmentUrl: getSignedObjectUrl,
+			verifyKey: async (token) => {
+				const result = await ddbClient.send(
+					new GetCommand({
+						TableName: Resource.ApiKeysTable.name,
+						Key: { keyHash: hashKey(token) },
+					}),
+				);
+				return !!result.Item;
+			},
+			version: "0.1.0",
+		});
+
+		return handle(app);
+	})();
+	return _handler(event, ...rest);
+};

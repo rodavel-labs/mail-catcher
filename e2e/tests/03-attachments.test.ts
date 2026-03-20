@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { deleteInbox, getEmail, getEmails, getEmailsWithWait } from "../core/api";
+import {
+	deleteInbox,
+	getEmail,
+	getEmails,
+	getEmailsWithWait,
+} from "../core/api";
 import { sendEmail } from "../core/ses";
 
 const INBOX = `e2e-attach-${Date.now()}`;
@@ -25,12 +30,14 @@ describe("attachments", () => {
 		const data = await getEmailsWithWait(INBOX);
 
 		expect(data.emails.length).toBeGreaterThanOrEqual(1);
-		const email = data.emails.find((e: { subject: string }) => e.subject === "Email with attachment");
-		expect(email).toBeDefined();
+		const email = data.emails.find(
+			(e) => e.subject === "Email with attachment",
+		);
+		if (!email) throw new Error("Expected email not found");
 		expect(email.attachments.length).toBeGreaterThanOrEqual(1);
 
-		const att = email.attachments.find((a: { filename: string }) => a.filename === "0-test.txt");
-		expect(att).toBeDefined();
+		const att = email.attachments.find((a) => a.filename === "0-test.txt");
+		if (!att) throw new Error("Expected attachment not found");
 		expect(att.contentType).toBeDefined();
 		expect(att.size).toBeGreaterThan(0);
 		expect(att.url).toContain("/attachments/");
@@ -44,8 +51,8 @@ describe("attachments", () => {
 		const email = await getEmail(sentMessageId);
 		expect(email.attachments.length).toBeGreaterThanOrEqual(1);
 
-		const att = email.attachments.find((a: { filename: string }) => a.filename === "0-test.txt");
-		expect(att).toBeDefined();
+		const att = email.attachments.find((a) => a.filename === "0-test.txt");
+		if (!att) throw new Error("Expected attachment not found");
 		expect(att.url).toContain("/attachments/");
 	});
 

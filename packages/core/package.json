@@ -8,6 +8,6 @@
 	"dependencies": {
 		"@aws-sdk/client-dynamodb": "^3.700.0",
 		"@aws-sdk/lib-dynamodb": "^3.700.0",
-		"sst": "^4.2.0"
+		"zod": "^4.3.6"
 	}
 }

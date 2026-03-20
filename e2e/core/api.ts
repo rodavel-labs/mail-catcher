@@ -1,3 +1,9 @@
+import type {
+	DeleteBulkResponse,
+	DeleteSingleResponse,
+	EmailListResponse,
+	EmailResponse,
+} from "@rodavel/mail-catcher-api";
 import { apiHeaders, apiUrl } from "./config";
 
 async function request(path: string, init?: RequestInit) {
@@ -15,26 +21,34 @@ async function request(path: string, init?: RequestInit) {
 	return res.json();
 }
 
-export async function getEmails(inbox: string, params?: Record<string, string>) {
+export async function getEmails(
+	inbox: string,
+	params?: Record<string, string>,
+): Promise<EmailListResponse> {
 	const url = apiUrl("/v1/emails", { inbox, ...params });
 	return request(url.pathname + url.search);
 }
 
-export async function getEmailsWithWait(inbox: string, params?: Record<string, string>) {
+export async function getEmailsWithWait(
+	inbox: string,
+	params?: Record<string, string>,
+): Promise<EmailListResponse> {
 	return getEmails(inbox, { wait: "true", timeout: "15", ...params });
 }
 
-export async function getEmail(messageId: string) {
+export async function getEmail(messageId: string): Promise<EmailResponse> {
 	return request(`/v1/emails/${encodeURIComponent(messageId)}`);
 }
 
-export async function deleteEmail(messageId: string) {
+export async function deleteEmail(
+	messageId: string,
+): Promise<DeleteSingleResponse> {
 	return request(`/v1/emails/${encodeURIComponent(messageId)}`, {
 		method: "DELETE",
 	});
 }
 
-export async function deleteInbox(inbox: string) {
+export async function deleteInbox(inbox: string): Promise<DeleteBulkResponse> {
 	const url = apiUrl("/v1/emails", { inbox });
 	return request(url.pathname + url.search, { method: "DELETE" });
 }

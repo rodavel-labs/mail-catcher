@@ -1,17 +1,20 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
 	GetObjectCommand,
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
-import type { AttachmentMeta, EmailItem } from "@rodavel/mail-catcher-core";
-import { putEmail } from "@rodavel/mail-catcher-core";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import {
+	type AttachmentMeta,
+	createEmailRepository,
+	type EmailItem,
+} from "@rodavel/mail-catcher-core";
 import type { S3Event } from "aws-lambda";
-import type { AddressObject } from "mailparser";
-import { simpleParser } from "mailparser";
+import { type AddressObject, simpleParser } from "mailparser";
 import { Resource } from "sst";
 import { extractInbox } from "./email-parser";
-
-export type { EmailItem };
+import { env } from "./env";
 
 export interface IngestDeps {
 	getObject: (bucket: string, key: string) => Promise<string>;
@@ -113,6 +116,7 @@ export function createIngestHandler(deps: IngestDeps) {
 }
 
 const s3 = new S3Client();
+const ddbClient = DynamoDBDocumentClient.from(new DynamoDBClient());
 
 let _handler: ReturnType<typeof createIngestHandler>;
 
@@ -134,19 +138,12 @@ export const handler: typeof _handler = (event) => {
 				}),
 			);
 		},
-		putEmail,
-		domain:
-			process.env.SES_DOMAIN ??
-			(() => {
-				throw new Error("SES_DOMAIN not set");
-			})(),
+		putEmail: createEmailRepository(ddbClient, Resource.EmailsTable.name)
+			.putEmail,
+		domain: env.SES_DOMAIN,
 		bucket: Resource.EmailBucket.name,
-		maxAttachmentSize: process.env.MAX_ATTACHMENT_SIZE
-			? Number(process.env.MAX_ATTACHMENT_SIZE)
-			: undefined,
-		maxAttachments: process.env.MAX_ATTACHMENTS
-			? Number(process.env.MAX_ATTACHMENTS)
-			: undefined,
+		maxAttachmentSize: env.MAX_ATTACHMENT_SIZE,
+		maxAttachments: env.MAX_ATTACHMENTS,
 	});
 	return _handler(event);
 };

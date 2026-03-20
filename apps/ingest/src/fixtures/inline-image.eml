@@ -1,0 +1,21 @@
+From: eve@example.com
+To: inbox@receive.example.com
+Subject: Email with inline image
+Message-ID: <inline-001@example.com>
+Date: Mon, 10 Mar 2025 12:04:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/related; boundary="----=_boundary_rel"
+
+------=_boundary_rel
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Here is a logo:</p><img src="cid:logo123@example.com" /></body></html>
+------=_boundary_rel
+Content-Type: image/png; name="logo.png"
+Content-Disposition: inline; filename="logo.png"
+Content-Transfer-Encoding: base64
+Content-ID: <logo123@example.com>
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9
+awAAAABJRU5ErkJggg==
+------=_boundary_rel--
