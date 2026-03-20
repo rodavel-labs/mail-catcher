@@ -41,7 +41,6 @@ jobs:
     name: Test E2E
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
       API_DOMAIN: ${{ secrets.API_DOMAIN }}
       API_TOKEN: ${{ secrets.API_TOKEN }}
       SES_DOMAIN: ${{ secrets.SES_DOMAIN }}
