@@ -83,6 +83,12 @@ export function createInfra() {
 					link: [emailsTable, emailBucket],
 					environment: {
 						SES_DOMAIN: domain,
+						...(env.MAX_ATTACHMENT_SIZE && {
+							MAX_ATTACHMENT_SIZE: env.MAX_ATTACHMENT_SIZE,
+						}),
+						...(env.MAX_ATTACHMENTS && {
+							MAX_ATTACHMENTS: env.MAX_ATTACHMENTS,
+						}),
 					},
 				},
 				events: ["s3:ObjectCreated:*"],
