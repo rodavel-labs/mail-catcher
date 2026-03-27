@@ -1,11 +1,16 @@
 /// <reference path="../../../../.sst/platform/config.d.ts" />
 
+const usEast1 = new aws.Provider("UsEast1", { region: "us-east-1" });
+
 function lookupCertificate(apiDomain: string) {
-	return aws.acm.getCertificateOutput({
-		domain: apiDomain,
-		statuses: ["ISSUED"],
-		mostRecent: true,
-	}).arn;
+	return aws.acm.getCertificateOutput(
+		{
+			domain: apiDomain,
+			statuses: ["ISSUED"],
+			mostRecent: true,
+		},
+		{ provider: usEast1 },
+	).arn;
 }
 
 function buildDomainConfig(apiDomain: string, hostedZoneId?: string) {
