@@ -95,9 +95,12 @@ describe("pagination and sort order", () => {
 			if (cursor) params.cursor = cursor;
 
 			const data = await getEmails(INBOX, params);
-			timestamps.push(data.emails[0].receivedAt);
 
-			cursor = data.hasMore ? data.nextCursor : undefined;
+			for (const email of data.emails) {
+				timestamps.push(email.receivedAt);
+			}
+
+			cursor = data.hasMore && data.nextCursor ? data.nextCursor : undefined;
 		} while (cursor);
 
 		for (let i = 1; i < timestamps.length; i++) {

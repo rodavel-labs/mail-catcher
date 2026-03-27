@@ -36,6 +36,30 @@ export async function getEmailsWithWait(
 	return getEmails(inbox, { wait: "true", timeout: "15", ...params });
 }
 
+/**
+ * Polls until the inbox contains at least `count` emails.
+ * Useful when multiple emails are sent concurrently and the server-side
+ * wait returns as soon as any single email arrives.
+ */
+export async function waitForEmailCount(
+	inbox: string,
+	count: number,
+	timeoutMs = 30_000,
+): Promise<EmailListResponse> {
+	const deadline = Date.now() + timeoutMs;
+
+	while (Date.now() < deadline) {
+		const data = await getEmailsWithWait(inbox, {
+			limit: String(count),
+		});
+		if (data.emails.length >= count) return data;
+
+		await new Promise((r) => setTimeout(r, 1000));
+	}
+
+	return getEmails(inbox, { limit: String(count) });
+}
+
 export async function getEmail(messageId: string): Promise<EmailResponse> {
 	return request(`/v1/emails/${encodeURIComponent(messageId)}`);
 }

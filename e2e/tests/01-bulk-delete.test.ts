@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { deleteInbox, getEmails, getEmailsWithWait } from "../core/api";
+import { deleteInbox, getEmails, waitForEmailCount } from "../core/api";
 import { sendEmail } from "../core/ses";
 
 const INBOX = `e2e-bulk-${Date.now()}`;
@@ -11,7 +11,7 @@ describe("bulk delete", () => {
 			sendEmail({ inbox: INBOX, subject: "Bulk 2" }),
 		]);
 
-		await getEmailsWithWait(INBOX, { limit: "2" });
+		await waitForEmailCount(INBOX, 2);
 	}, 30_000);
 
 	test("delete all emails in inbox", async () => {

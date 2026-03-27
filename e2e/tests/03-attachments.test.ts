@@ -4,6 +4,7 @@ import {
 	getEmail,
 	getEmails,
 	getEmailsWithWait,
+	waitForEmailCount,
 } from "../core/api";
 import { sendEmail } from "../core/ses";
 
@@ -20,7 +21,9 @@ describe("attachments", () => {
 			subject: "Email with attachment",
 			attachments: [{ content, filename: "test.txt" }],
 		});
-	});
+
+		await waitForEmailCount(INBOX, 1);
+	}, 30_000);
 
 	afterAll(async () => {
 		await deleteInbox(INBOX).catch(() => {});
