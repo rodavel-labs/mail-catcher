@@ -1,6 +1,6 @@
 # mail-catcher
 
-[![CI](https://github.com/RodPaDev/mail-catcher/actions/workflows/ci.yml/badge.svg)](https://github.com/RodPaDev/mail-catcher/actions/workflows/ci.yml)
+[![CI](https://github.com/rodavel-labs/mail-catcher/actions/workflows/ci.yml/badge.svg)](https://github.com/rodavel-labs/mail-catcher/actions/workflows/ci.yml)
 
 Serverless inbound email API. Receives emails via AWS SES, stores raw `.eml` files in S3, indexes metadata in DynamoDB, and exposes a REST API to query and retrieve them.
 
@@ -59,16 +59,22 @@ Full documentation is available at [rodavel.com/docs/mail-catcher](https://rodav
 ```text
 ├── sst.config.ts                  # SST app configuration
 ├── scripts/provision.ts           # API key management CLI
+├── apps/
+│   ├── api/src/                   # REST API (Hono on Lambda)
+│   │   ├── index.ts               # App factory and route setup
+│   │   ├── routes/v1/emails.ts    # Email endpoints
+│   │   ├── middleware/auth.ts     # Bearer token authentication
+│   │   └── schemas.ts            # Zod validation schemas
+│   └── ingest/src/                # Email parser (S3 event handler)
+│       ├── ingest.ts              # S3 event → parse → DynamoDB
+│       └── email-parser.ts        # RFC 5322 header extraction
 ├── packages/
-│   ├── api/src/
-│   │   ├── index.ts               # Hono API (GET /emails, /raw, /health)
-│   │   ├── ingest.ts              # S3 event → parse email → DynamoDB
-│   │   ├── lib/dynamo.ts          # DynamoDB read/write operations
-│   │   ├── lib/email-parser.ts    # Email header extraction
-│   │   └── middleware/auth.ts     # Bearer token authentication
-│   └── infra/src/
-│       ├── index.ts               # S3, DynamoDB, Lambda definitions
-│       └── ses-inbound.ts         # SES receipt rules (raw Pulumi)
+│   ├── core/src/                  # Shared DynamoDB operations
+│   │   └── dynamo.ts              # Read/write/delete operations
+│   └── infra/src/                 # AWS infrastructure definitions
+│       ├── index.ts               # S3, DynamoDB, Lambda, Router
+│       └── ses-inbound.ts         # SES receipt rules and DNS
+├── e2e/                           # End-to-end tests
 ```
 
 ## License
